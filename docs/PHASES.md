@@ -87,7 +87,9 @@ Implementation Notes:
 
 ---
 
-# PHASE 2 — Database
+# PHASE 2 — Database [DONE]
+
+Status: DONE
 
 Goal:
 
@@ -95,36 +97,46 @@ Create the persistent data model.
 
 Implement:
 
-- users
-- transactions
-- devices
-- ips
-- merchants
-- user_devices
-- user_ips
-- risk_assessments
-- policy_decisions
-- otp_challenges
-- fraud_relationships
-- investigations
-- investigation_evidence
-- rag_documents
-- embedding_records
-- scenarios
-- audit_events
+- users [DONE]
+- transactions [DONE]
+- devices [DONE]
+- ips [DONE]
+- merchants [DONE]
+- user_devices [DONE]
+- user_ips [DONE]
+- risk_assessments [DONE]
+- policy_decisions [DONE]
+- otp_challenges [DONE]
+- fraud_relationships [DONE]
+- investigations [DONE]
+- investigation_evidence [DONE]
+- rag_documents [DONE]
+- embedding_records [DONE]
+- scenarios [DONE]
+- audit_events [DONE]
 
 Tasks:
 
-- migrations
-- indexes
-- constraints
-- seed system
+- migrations [DONE]
+- indexes [DONE]
+- constraints [DONE]
+- seed system [DONE]
 
 Validation:
 
-- migrations run successfully
-- seed data loads
-- relationships work
+- migrations run successfully (`000001_init_schema.up.sql`) [DONE]
+- seed data loads (`database/seed/seed.sql`) [DONE]
+- relationships work [DONE]
+- pgvector 384-dim vector cosine search verified [DONE]
+
+Implementation Notes:
+- Authoritative user thresholds (`challenge_threshold`, `block_threshold`) stored on `users` with `challenge_threshold < block_threshold` check constraint. `risk_tolerance` retained as contextual metadata.
+- `transactions.status` (`PENDING`, `APPROVED`, `CHALLENGED`, `BLOCKED`, `CANCELLED`) separated from `policy_decisions.decision` (`ALLOW`, `CHALLENGE`, `BLOCK`).
+- OTP code stored strictly as `otp_code_hash` with fields for `expires_at`, `attempts`, `max_attempts`, `status`, `verified_at`.
+- `risk_assessments` explicitly tracks dual model outputs (`fraud_probability`, `anomaly_score`, `fraud_model_version`, `anomaly_model_version`, `risk_score`, `feature_snapshot`).
+- `embedding_records` uses 384-dimensional vector space (`vector(384)`) indexed via HNSW (`vector_cosine_ops`), compatible with `all-MiniLM-L6-v2`.
+- `fraud_relationships` table implemented in PostgreSQL to represent relational fraud graph without external graph DB overhead.
+- Reproducible demonstration reset script `scripts/reset_db.sh` created and verified.
 
 ---
 
