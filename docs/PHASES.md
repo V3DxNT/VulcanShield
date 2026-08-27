@@ -13,7 +13,9 @@ Do NOT implement future phases prematurely.
 
 ---
 
-# PHASE 0 — Repository Initialization
+# PHASE 0 — Repository Initialization [DONE]
+
+Status: DONE
 
 Goal:
 
@@ -21,22 +23,27 @@ Create the project structure and development environment.
 
 Tasks:
 
-- Initialize Git repository
-- Create frontend directory
-- Create backend directory
-- Create ml-service directory
-- Create ai-service directory
-- Create database directory
-- Create scripts directory
-- Create Docker Compose
-- Create environment configuration
-- Create basic README
+- Initialize Git repository [DONE]
+- Create frontend directory [DONE]
+- Create backend directory [DONE]
+- Create ml-service directory [DONE]
+- Create ai-service directory [DONE]
+- Create database directory [DONE]
+- Create scripts directory [DONE]
+- Create Docker Compose [DONE]
+- Create environment configuration [DONE]
+- Create basic README [DONE]
 
 Validation:
 
-- Repository structure exists
-- Docker Compose configuration is valid
-- No application logic yet
+- Repository structure exists [DONE]
+- Docker Compose configuration is valid (`docker compose config` passed) [DONE]
+- No application logic yet [DONE]
+
+Implementation Notes:
+- `.env` added to `.gitignore` to prevent tracking runtime secrets.
+- `.env.example` created as canonical environment template.
+- Distinct `/ml-service` and `/ai-service` directories established per PROJECT_SPEC.md.
 
 ---
 
