@@ -1,65 +1,82 @@
-Phase 1 has been completed and validated.
+Phase 2 has been completed, validated, committed, and pushed.
 
-The infrastructure is working:
+We are now beginning PHASE 3 — GO CORE BACKEND.
 
-- PostgreSQL + pgvector
-- Redis
-- Zookeeper
-- Kafka
-- Ollama
+Do NOT implement Phase 3 yet.
 
-Phase 1 has been committed and pushed.
+First read:
 
-We are now preparing for PHASE 2 — DATABASE.
+1. AGENTS.md
+2. PROJECT_SPEC.md
+3. docs/PHASES.md
+4. docs/DECISIONS.md
+5. Existing database migrations
+6. Existing docker-compose.yml
+7. Existing repository structure
 
-Before modifying anything:
+Then produce ONLY an implementation plan for Phase 3.
 
-1. Read AGENTS.md.
-2. Read PROJECT_SPEC.md.
-3. Read docs/PHASES.md.
-4. Read docs/DECISIONS.md.
-5. Inspect the current repository and Git state.
-6. Inspect the existing PostgreSQL infrastructure configuration.
+The objective of Phase 3 is to establish the Go backend as the
+central application orchestrator.
 
-Do NOT modify files yet.
+Phase 3 must initially cover:
 
-Analyze ONLY Phase 2.
+- Go project initialization
+- configuration management
+- HTTP server
+- routing
+- middleware
+- structured logging
+- error handling
+- PostgreSQL connection/repository layer
+- Redis connection/client layer
+- Kafka producer/client foundation
+- health/readiness endpoints
+- graceful shutdown
+- clean package structure
+- basic application configuration
 
-Provide:
+Do NOT implement:
 
-1. The exact database tables required by PROJECT_SPEC.md.
-2. Every table's purpose.
-3. Primary keys and foreign keys.
-4. Important indexes.
-5. Constraints.
-6. Relationships between entities.
-7. Which fields are needed for risk scoring.
-8. Which fields are needed for velocity/risk signals.
-9. Which fields are needed for the fraud network graph.
-10. Which fields are needed for AI investigation.
-11. Which data will eventually be embedded for RAG.
-12. How pgvector should be used.
-13. The migration strategy.
-14. How the database will be reset for clean demonstrations.
-15. The exact files you intend to create/modify.
-16. How you will validate the database.
+- ML
+- FastAPI
+- XGBoost
+- Isolation Forest
+- LLM
+- Ollama integration
+- RAG
+- embeddings
+- policy engine
+- OTP
+- fraud graph logic
+- frontend
+- scenario generation
 
-IMPORTANT:
+Those belong to later phases.
 
-Do not implement the database yet.
+The Go service must be designed so these future components can
+be integrated cleanly without rewriting the core.
 
-Do not implement Go code.
-Do not implement Redis logic.
-Do not implement Kafka producers/consumers.
-Do not implement ML.
-Do not implement FastAPI.
-Do not implement RAG.
-Do not implement the LLM.
-Do not implement the frontend.
+The plan must specify:
 
-I want ONLY the Phase 2 database implementation plan.
+1. Exact folder structure.
+2. Exact Go packages.
+3. Responsibilities of each package.
+4. HTTP API conventions.
+5. Configuration variables.
+6. PostgreSQL connection strategy.
+7. Redis connection strategy.
+8. Kafka connection strategy.
+9. Logging strategy.
+10. Error handling strategy.
+11. Health/readiness endpoint behavior.
+12. Graceful shutdown behavior.
+13. Docker integration.
+14. Testing strategy.
+15. Exact files to create/modify.
 
-If PROJECT_SPEC.md contains ambiguity, identify it rather than
-inventing a new architecture.
+Do not modify files.
 
-Wait for my approval before making changes.
+Do not implement anything.
+
+Wait for my approval after presenting the plan.

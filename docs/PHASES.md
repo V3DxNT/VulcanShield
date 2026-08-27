@@ -140,7 +140,9 @@ Implementation Notes:
 
 ---
 
-# PHASE 3 — Go Backend Foundation
+# PHASE 3 — Go Backend Foundation [DONE]
+
+Status: DONE
 
 Goal:
 
@@ -148,25 +150,35 @@ Create the central Go backend.
 
 Implement:
 
-- configuration
-- database connection
-- Redis connection
-- Kafka producer
-- Kafka consumer foundation
-- HTTP server
-- structured logging
-- health endpoint
-- transaction models
+- configuration [DONE]
+- database connection [DONE]
+- Redis connection [DONE]
+- Kafka producer [DONE]
+- Kafka consumer foundation [DONE]
+- HTTP server [DONE]
+- structured logging [DONE]
+- health endpoint [DONE]
+- transaction models [DONE]
 
 Validation:
 
-GET /health works.
+- `GET /health` works (returns 200 OK with liveness JSON) [DONE]
+- `GET /ready` works (probes PostgreSQL, Redis, Kafka; returns 200 OK) [DONE]
+- Go connects to:
+  - PostgreSQL (`pgx/v5` pgxpool connection pool) [DONE]
+  - Redis (`go-redis/v9` client ping) [DONE]
+  - Kafka (`twmb/franz-go` producer metadata ping) [DONE]
+- Unit tests & integration tests pass [DONE]
+- Docker container `vulcanshield-backend` built and healthy [DONE]
 
-Go can connect to:
-
-- PostgreSQL
-- Redis
-- Kafka
+Implementation Notes:
+- Standard library HTTP layer: `net/http`, `http.ServeMux`, `http.Handler` with Go 1.22+ method/path routing patterns. Zero third-party HTTP frameworks (no Gin, Chi, Fiber, etc.).
+- Structured logging via stdlib `log/slog` with JSON formatting in production and text formatting in debug mode.
+- Request correlation via `X-Request-ID` middleware attached to request contexts and logged on every request.
+- `config.Load()` returns `(*Config, error)` — no panics on missing configuration; `main()` handles shutdown cleanly.
+- Graceful degradation: PostgreSQL is a required startup dependency (fatal if missing); Redis and Kafka log warnings and operate in degraded mode if unavailable.
+- CORS middleware implemented in isolation and disabled by default until Phase 12 (Next.js frontend).
+- Docker integration using multi-stage build (golang:1.23-alpine → alpine:3.20) gated behind `profiles: [app]` in `docker-compose.yml`.
 
 ---
 
