@@ -40,19 +40,37 @@ VulcanShield is a financial transaction risk management platform designed for re
 ## Development Setup
 
 ### Environment Variables
-Copy `.env.example` to `.env`:
+Copy `.env.example` to `.env` (note: `.env` is ignored by `.gitignore`):
 ```bash
 cp .env.example .env
 ```
 
-### Docker Compose
-Validate container configurations:
+### Infrastructure Management (Phase 1)
+Start all core infrastructure services (PostgreSQL + pgvector, Redis, Kafka, Ollama):
 ```bash
-docker compose config
+docker compose up -d
+```
+
+Check infrastructure health status:
+```bash
+docker compose ps
+```
+
+Stop infrastructure services:
+```bash
+docker compose down
+```
+
+### Local LLM Model Setup (Ollama)
+The Ollama container runs locally on port `11434`. To pull the target instruction model when ready for AI investigation:
+```bash
+docker exec -it vulcanshield-ollama ollama pull qwen2.5:7b-instruct
 ```
 
 ---
 
 ## Current Status
 
-* **Phase 0 — Repository Initialization**: Completed. Base monorepo structure, environment configuration, and docker-compose specification established.
+* **Phase 0 — Repository Initialization**: Completed.
+* **Phase 1 — Infrastructure**: Completed. Local infrastructure (PostgreSQL with pgvector, Redis, Kafka + Zookeeper, Ollama) is configured, validated, and runnable via Docker Compose.
+

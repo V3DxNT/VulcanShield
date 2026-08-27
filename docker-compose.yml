@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vulcanpass}
       POSTGRES_DB: ${POSTGRES_DB:-vulcanshield}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vulcan} -d ${POSTGRES_DB:-vulcanshield}"]
       interval: 5s
@@ -43,6 +43,7 @@ services:
       - zookeeper
     ports:
       - "9092:9092"
+      - "29092:29092"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
@@ -50,6 +51,11 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   ollama:
     image: ollama/ollama:latest
@@ -57,50 +63,8 @@ services:
     restart: unless-stopped
     ports:
       - "11434:11434"
-
-  backend:
-    build:
-      context: ./backend
-    container_name: vulcanshield-backend
-    restart: unless-stopped
-    ports:
-      - "${BACKEND_PORT:-8080}:8080"
-    environment:
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - KAFKA_BROKERS=kafka:9092
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-
-  frontend:
-    build:
-      context: ./frontend
-    container_name: vulcanshield-frontend
-    restart: unless-stopped
-    ports:
-      - "${FRONTEND_PORT:-3000}:3000"
-    environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8080
-
-  ml-service:
-    build:
-      context: ./ml-service
-    container_name: vulcanshield-ml-service
-    restart: unless-stopped
-    ports:
-      - "${ML_SERVICE_PORT:-8000}:8000"
-
-  ai-service:
-    build:
-      context: ./ai-service
-    container_name: vulcanshield-ai-service
-    restart: unless-stopped
-    ports:
-      - "${AI_SERVICE_PORT:-8001}:8001"
-    environment:
-      - OLLAMA_HOST=http://ollama:11434
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 5s
+      retries: 5

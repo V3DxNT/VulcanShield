@@ -47,7 +47,9 @@ Implementation Notes:
 
 ---
 
-# PHASE 1 — Infrastructure
+# PHASE 1 — Infrastructure [DONE]
+
+Status: DONE
 
 Goal:
 
@@ -55,29 +57,33 @@ Run the infrastructure locally.
 
 Components:
 
-- PostgreSQL
-- pgvector
-- Redis
-- Kafka
-- Ollama
+- PostgreSQL [DONE]
+- pgvector [DONE]
+- Redis [DONE]
+- Kafka [DONE]
+- Ollama [DONE]
 
 Tasks:
 
-- Docker Compose services
-- Health checks
-- Environment variables
-- Network configuration
-- Service connectivity
+- Docker Compose services [DONE]
+- Health checks [DONE]
+- Environment variables [DONE]
+- Network configuration [DONE]
+- Service connectivity [DONE]
 
 Validation:
 
-- PostgreSQL reachable
-- Redis reachable
-- Kafka reachable
-- Ollama reachable
-- pgvector enabled
+- PostgreSQL reachable (`psql` query passed) [DONE]
+- Redis reachable (`PING`, `SET`/`GET` passed) [DONE]
+- Kafka reachable (`kafka-topics` creation/listing passed) [DONE]
+- Ollama reachable (`GET /api/tags` passed) [DONE]
+- pgvector enabled (`pgvector` extension v0.8.6 confirmed) [DONE]
 
-Do not build ML or AI logic yet.
+Implementation Notes:
+- `POSTGRES_HOST_PORT` introduced (default 5433 on host) to avoid port conflicts with host-system Postgres daemons.
+- Ollama health check configured via `ollama list` CLI command inside container.
+- Kafka advertised listener exposed on port `29092` for external host client testing.
+- No model pulled automatically in Phase 1 to ensure fast, reliable startup. Model pull instructions documented in README.md.
 
 ---
 
