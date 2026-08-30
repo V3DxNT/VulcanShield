@@ -41,7 +41,7 @@ func (a *AmountAnomalyScenario) Next(idx int, rng *rand.Rand, pool *models.Entit
 		IPAddress:     ipAddr,
 		MerchantID:    merchantID,
 		Amount:        amount,
-		Currency:      "USD",
+		Currency:      "INR",
 		Channel:       "WEB",
 		Status:        models.StatusPending,
 		Timestamp:     now,

@@ -1,6 +1,22 @@
 'use client';
+import { useState, useEffect, useCallback } from 'react';
 
-import React, { useState, useEffect } from 'react';
+function formatINR(amount: number) {
+  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amount);
+}
+
+function StatusBadge({ status, onChallenge }: { status: string; onChallenge: () => void }) {
+  if (status === 'APPROVED') return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">Approved</span>;
+  if (status === 'BLOCKED') return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600 border border-red-200">Blocked</span>;
+  if (status === 'CHALLENGED') return (
+    <button onClick={e => { e.stopPropagation(); onChallenge(); }}
+      className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors flex items-center gap-1">
+      <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+      OTP Required
+    </button>
+  );
+  return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500 border border-gray-200">Pending</span>;
+}
 
 interface Transaction {
   transaction_id: string;
@@ -13,144 +29,113 @@ interface Transaction {
   channel: string;
   status: string;
   timestamp: string;
-  risk_score?: number;
 }
 
-interface StreamProps {
+interface Props {
   onSelectTx: (tx: Transaction) => void;
   onOpenOTP: (challengeID: string, txID: string) => void;
 }
 
-export default function TransactionStream({ onSelectTx, onOpenOTP }: StreamProps) {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+export default function TransactionStream({ onSelectTx, onOpenOTP }: Props) {
+  const [txs, setTxs] = useState<Transaction[]>([]);
+  const [filter, setFilter] = useState('all');
 
-  const fetchTxList = async () => {
+  const fetchTxList = useCallback(async () => {
     try {
-      const res = await fetch('/api/v1/transactions?limit=25');
+      const res = await fetch('/api/v1/transactions?limit=50');
       if (res.ok) {
         const json = await res.json();
-        if (json.data) {
-          setTransactions(json.data);
-        }
+        if (json.data) setTxs(json.data);
       }
-    } catch (e) {
-      // ignore
-    }
-  };
+    } catch {}
+  }, []);
 
   useEffect(() => {
     fetchTxList();
     const interval = setInterval(fetchTxList, 1500);
 
-    // WebSocket real-time connection
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.hostname}:8080/api/v1/ws`;
-    
     let ws: WebSocket | null = null;
     try {
       ws = new WebSocket(wsUrl);
-      ws.onmessage = (event) => {
+      ws.onmessage = event => {
         try {
           const payload = JSON.parse(event.data);
           if (payload.event_type === 'transaction_created') {
-            setTransactions((prev) => [payload.data, ...prev.slice(0, 24)]);
+            setTxs(prev => [payload.data, ...prev.slice(0, 49)]);
           }
-        } catch (err) {
-          // ignore
-        }
+        } catch {}
       };
-    } catch (err) {
-      // ignore
-    }
+    } catch {}
 
-    return () => {
-      clearInterval(interval);
-      if (ws) ws.close();
-    };
-  }, []);
+    return () => { clearInterval(interval); ws?.close(); };
+  }, [fetchTxList]);
 
-  const getStatusBadge = (status: string, tx: Transaction) => {
-    switch (status) {
-      case 'APPROVED':
-        return <span className="px-2 py-0.5 rounded text-[11px] font-mono bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">APPROVED</span>;
-      case 'CHALLENGED':
-        return (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenOTP(`CH-${tx.transaction_id}`, tx.transaction_id);
-            }}
-            className="px-2 py-0.5 rounded text-[11px] font-mono bg-amber-500/20 border border-amber-500/40 text-amber-300 hover:bg-amber-500/30 flex items-center gap-1"
-          >
-            CHALLENGED (OTP)
-          </button>
-        );
-      case 'BLOCKED':
-        return <span className="px-2 py-0.5 rounded text-[11px] font-mono bg-rose-500/10 border border-rose-500/30 text-rose-400">BLOCKED</span>;
-      default:
-        return <span className="px-2 py-0.5 rounded text-[11px] font-mono bg-slate-800 text-slate-400">PENDING</span>;
-    }
-  };
+  const filtered = filter === 'all' ? txs : txs.filter(t => t.status === filter.toUpperCase());
 
   return (
-    <div className="p-5 rounded-xl bg-slate-900/60 border border-slate-800 backdrop-blur">
-      <h2 className="font-bold text-sm uppercase tracking-wider text-slate-300 mb-4 flex justify-between items-center">
-        <span>Live Transaction Stream</span>
-        <span className="text-xs font-mono font-normal text-slate-500">Auto-refreshing</span>
-      </h2>
+    <div className="bg-white rounded-2xl border border-[#d2d2d7] shadow-sm overflow-hidden">
+      <div className="px-6 py-4 border-b border-[#e8e8ed] flex items-center justify-between">
+        <div>
+          <h2 className="font-semibold text-[#1d1d1f] text-base">Live Transaction Stream</h2>
+          <p className="text-xs text-[#6e6e73] mt-0.5">{txs.length} transactions • auto-refreshing</p>
+        </div>
+        <div className="flex gap-1 bg-[#f5f5f7] p-1 rounded-lg border border-[#e8e8ed]">
+          {['all', 'approved', 'challenged', 'blocked'].map(f => (
+            <button key={f} onClick={() => setFilter(f)}
+              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors capitalize ${
+                filter === f ? 'bg-white text-[#1d1d1f] shadow-sm border border-[#d2d2d7]' : 'text-[#6e6e73] hover:text-[#1d1d1f]'
+              }`}>
+              {f}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs font-mono">
-          <thead className="text-[11px] text-slate-500 uppercase border-b border-slate-800">
-            <tr>
-              <th className="pb-3">Transaction ID</th>
-              <th className="pb-3">User ID</th>
-              <th className="pb-3">Device / IP</th>
-              <th className="pb-3">Amount</th>
-              <th className="pb-3">Status</th>
-              <th className="pb-3">Timestamp</th>
-              <th className="pb-3 text-right">Action</th>
+        <table className="w-full text-left text-sm">
+          <thead>
+            <tr className="border-b border-[#e8e8ed] bg-[#f5f5f7]">
+              {['Transaction', 'User', 'Device / IP', 'Amount', 'Channel', 'Status', 'Time', ''].map(h => (
+                <th key={h} className="px-4 py-3 text-xs font-medium text-[#6e6e73] uppercase tracking-wide first:pl-6 last:pr-6">{h}</th>
+              ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800/50">
-            {transactions.length === 0 ? (
+          <tbody className="divide-y divide-[#f5f5f7]">
+            {filtered.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-8 text-center text-slate-500">
-                  No transactions generated yet. Start a scenario to stream traffic.
+                <td colSpan={8} className="px-6 py-12 text-center text-sm text-[#a1a1a6]">
+                  No transactions yet. Start a scenario to stream live data.
                 </td>
               </tr>
-            ) : (
-              transactions.map((tx) => (
-                <tr
-                  key={tx.transaction_id}
-                  onClick={() => onSelectTx(tx)}
-                  className="hover:bg-slate-800/40 cursor-pointer transition-colors"
-                >
-                  <td className="py-3 font-semibold text-blue-400">{tx.transaction_id}</td>
-                  <td className="py-3 text-slate-300">{tx.user_id}</td>
-                  <td className="py-3 text-slate-400">
-                    <div>{tx.device_id}</div>
-                    <div className="text-[10px] text-slate-500">{tx.ip_address}</div>
-                  </td>
-                  <td className="py-3 font-bold text-slate-200">${tx.amount?.toFixed(2)}</td>
-                  <td className="py-3">{getStatusBadge(tx.status, tx)}</td>
-                  <td className="py-3 text-slate-500 text-[10px]">
-                    {new Date(tx.timestamp).toLocaleTimeString()}
-                  </td>
-                  <td className="py-3 text-right">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onSelectTx(tx);
-                      }}
-                      className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-[11px] transition-colors"
-                    >
-                      Investigate
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
+            ) : filtered.map(tx => (
+              <tr key={tx.transaction_id} onClick={() => onSelectTx(tx)}
+                className="hover:bg-[#f5f5f7] cursor-pointer transition-colors group">
+                <td className="pl-6 pr-4 py-3.5 font-mono text-xs font-medium text-[#0071e3]">{tx.transaction_id}</td>
+                <td className="px-4 py-3.5 text-xs font-medium text-[#1d1d1f]">{tx.user_id}</td>
+                <td className="px-4 py-3.5">
+                  <div className="text-xs text-[#1d1d1f] font-mono">{tx.device_id}</div>
+                  <div className="text-xs text-[#a1a1a6] font-mono">{tx.ip_address}</div>
+                </td>
+                <td className="px-4 py-3.5 font-semibold text-sm text-[#1d1d1f]">
+                  {tx.currency === 'INR' ? `₹${tx.amount?.toLocaleString('en-IN')}` : `$${tx.amount?.toFixed(2)}`}
+                </td>
+                <td className="px-4 py-3.5 text-xs text-[#6e6e73]">{tx.channel}</td>
+                <td className="px-4 py-3.5">
+                  <StatusBadge status={tx.status} onChallenge={() => onOpenOTP(`CH-${tx.transaction_id}`, tx.transaction_id)} />
+                </td>
+                <td className="px-4 py-3.5 text-xs text-[#a1a1a6]">
+                  {new Date(tx.timestamp).toLocaleTimeString('en-IN')}
+                </td>
+                <td className="pr-6 pl-4 py-3.5 text-right">
+                  <button onClick={e => { e.stopPropagation(); onSelectTx(tx); }}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity px-3 py-1.5 bg-[#0071e3] text-white rounded-lg text-xs font-medium">
+                    Investigate
+                  </button>
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>

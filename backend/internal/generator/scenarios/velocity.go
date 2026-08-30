@@ -39,7 +39,7 @@ func (v *VelocityAttackScenario) Next(idx int, rng *rand.Rand, pool *models.Enti
 		IPAddress:     ipAddr,
 		MerchantID:    merchantID,
 		Amount:        amount,
-		Currency:      "USD",
+		Currency:      "INR",
 		Channel:       "WEB",
 		Status:        models.StatusPending,
 		Timestamp:     now,

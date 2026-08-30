@@ -41,7 +41,7 @@ func (a *AccountTakeoverScenario) Next(idx int, rng *rand.Rand, pool *models.Ent
 		IPAddress:     ipAddr,
 		MerchantID:    merchantID,
 		Amount:        amount,
-		Currency:      "USD",
+		Currency:      "INR",
 		Channel:       "WEB",
 		Status:        models.StatusPending,
 		Timestamp:     now,

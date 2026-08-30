@@ -1,73 +1,129 @@
 'use client';
+import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 
-import React, { useState, useEffect } from 'react';
-
-interface Rel {
+interface Relationship {
   relationship_id: string;
   source_type: string;
   source_id: string;
   target_type: string;
   target_id: string;
   relationship_type: string;
+  weight: number;
   fraud_linked: boolean;
 }
 
-export default function GraphVisualizer() {
-  const [relationships, setRelationships] = useState<Rel[]>([]);
+interface NodeStats {
+  userId: string;
+  deviceCount: number;
+  ipCount: number;
+  txCount: number;
+  fraudLinked: boolean;
+  devices: string[];
+  ips: string[];
+}
 
-  useEffect(() => {
-    const fetchGraph = async () => {
-      try {
-        const res = await fetch('/api/v1/graph/relationships?limit=20');
-        if (res.ok) {
-          const json = await res.json();
-          if (json.data) {
-            setRelationships(json.data);
-          }
-        }
-      } catch (e) {
-        // ignore
+function buildNodeStats(rels: Relationship[]): NodeStats[] {
+  const map = new Map<string, NodeStats>();
+
+  rels.forEach(r => {
+    if (r.source_type === 'USER' && !map.has(r.source_id)) {
+      map.set(r.source_id, { userId: r.source_id, deviceCount: 0, ipCount: 0, txCount: 0, fraudLinked: false, devices: [], ips: [] });
+    }
+    if (r.target_type === 'USER' && !map.has(r.target_id)) {
+      map.set(r.target_id, { userId: r.target_id, deviceCount: 0, ipCount: 0, txCount: 0, fraudLinked: false, devices: [], ips: [] });
+    }
+
+    const user = r.source_type === 'USER' ? map.get(r.source_id) : r.target_type === 'USER' ? map.get(r.target_id) : null;
+    if (user) {
+      if (r.relationship_type === 'DEVICE_SHARED' || r.relationship_type === 'SHARED_DEVICE') {
+        const other = r.source_type === 'DEVICE' ? r.source_id : r.target_id;
+        if (!user.devices.includes(other)) { user.devices.push(other); user.deviceCount++; }
       }
-    };
-    fetchGraph();
+      if (r.relationship_type === 'IP_SHARED' || r.relationship_type === 'SHARED_IP') {
+        const other = r.source_type === 'IP' ? r.source_id : r.target_id;
+        if (!user.ips.includes(other)) { user.ips.push(other); user.ipCount++; }
+      }
+      if (r.fraud_linked) user.fraudLinked = true;
+    }
+  });
+
+  return Array.from(map.values());
+}
+
+export default function GraphVisualizer() {
+  const [relationships, setRelationships] = useState<Relationship[]>([]);
+  const [nodeStats, setNodeStats] = useState<NodeStats[]>([]);
+  const [selected, setSelected] = useState<Relationship | null>(null);
+
+  const fetchGraph = useCallback(async () => {
+    try {
+      const res = await fetch('/api/v1/graph/relationships?limit=50');
+      if (res.ok) {
+        const json = await res.json();
+        const data = json.data ?? [];
+        setRelationships(data);
+        setNodeStats(buildNodeStats(data));
+      }
+    } catch {}
   }, []);
 
+  useEffect(() => { fetchGraph(); }, [fetchGraph]);
+
+  const fraudCount = relationships.filter(r => r.fraud_linked).length;
+  const userNodes = Array.from(new Set(relationships.flatMap(r => [r.source_id, r.target_id])));
+
   return (
-    <div className="p-5 rounded-xl bg-slate-900/60 border border-slate-800 backdrop-blur mb-6">
-      <h2 className="font-bold text-sm uppercase tracking-wider text-slate-300 mb-4 flex justify-between items-center">
-        <span>Fraud Network Graph Visualizer</span>
-        <span className="text-xs font-mono font-normal text-slate-500">Relational Graph Engine</span>
-      </h2>
+    <div className="bg-white rounded-2xl border border-[#d2d2d7] shadow-sm">
+      <div className="px-6 py-4 border-b border-[#e8e8ed] flex items-center justify-between">
+        <div>
+          <h2 className="font-semibold text-[#1d1d1f] text-base">Fraud Network Graph</h2>
+          <p className="text-xs text-[#6e6e73] mt-0.5">{relationships.length} edges · {userNodes.length} unique nodes · {fraudCount} fraud-linked</p>
+        </div>
+        <Link href="/network"
+          className="px-3.5 py-1.5 text-xs font-medium text-[#0071e3] border border-[#0071e3]/30 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
+          Full Network View →
+        </Link>
+      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="p-4 rounded-lg bg-slate-950 border border-slate-800 font-mono text-xs max-h-60 overflow-y-auto">
-          <p className="text-[11px] text-slate-500 uppercase mb-3">Graph Edges & Fraud Links</p>
-          {relationships.length === 0 ? (
-            <p className="text-slate-500">No graph relationships extracted yet.</p>
-          ) : (
-            relationships.map((r) => (
-              <div key={r.relationship_id} className="p-2 mb-2 rounded bg-slate-900 border border-slate-800 flex justify-between items-center">
-                <div>
-                  <span className="text-blue-400 font-bold">{r.source_id}</span>
-                  <span className="text-slate-500 mx-2">→ ({r.relationship_type}) →</span>
-                  <span className="text-indigo-400 font-bold">{r.target_id}</span>
-                </div>
-                {r.fraud_linked ? (
-                  <span className="px-2 py-0.5 rounded text-[10px] bg-rose-500/20 text-rose-400 border border-rose-500/30">FRAUD LINKED</span>
-                ) : (
-                  <span className="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-400">CLEAN</span>
-                )}
+      <div className="p-6">
+        {relationships.length === 0 ? (
+          <p className="text-sm text-center text-[#a1a1a6] py-8">No relationships extracted yet. Start a device_farm or ip_abuse scenario to generate graph data.</p>
+        ) : (
+          <div className="space-y-4">
+            {/* Summary Tiles */}
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              <div className="p-3 rounded-xl bg-[#f5f5f7] border border-[#e8e8ed] text-center">
+                <p className="text-2xl font-semibold text-[#1d1d1f]">{userNodes.length}</p>
+                <p className="text-xs text-[#6e6e73] mt-0.5">Unique Nodes</p>
               </div>
-            ))
-          )}
-        </div>
+              <div className="p-3 rounded-xl bg-[#f5f5f7] border border-[#e8e8ed] text-center">
+                <p className="text-2xl font-semibold text-[#1d1d1f]">{relationships.length}</p>
+                <p className="text-xs text-[#6e6e73] mt-0.5">Total Edges</p>
+              </div>
+              <div className="p-3 rounded-xl bg-red-50 border border-red-100 text-center">
+                <p className="text-2xl font-semibold text-red-600">{fraudCount}</p>
+                <p className="text-xs text-red-500 mt-0.5">Fraud-Linked</p>
+              </div>
+            </div>
 
-        <div className="p-4 rounded-lg bg-slate-950 border border-slate-800 font-mono text-xs flex flex-col justify-center">
-          <h3 className="text-slate-300 font-bold mb-2">Graph Intelligence Insights</h3>
-          <p className="text-slate-400 text-xs leading-relaxed">
-            The relational graph engine tracks entities (users, devices, IPs, merchants) and detects shared high-risk nodes across accounts to prevent coordinated device-farm and IP-abuse carding attacks.
-          </p>
-        </div>
+            {/* Edge List */}
+            <div className="max-h-56 overflow-y-auto space-y-2">
+              {relationships.slice(0, 20).map(r => (
+                <div key={r.relationship_id}
+                  onClick={() => setSelected(selected?.relationship_id === r.relationship_id ? null : r)}
+                  className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl border cursor-pointer transition-colors ${
+                    r.fraud_linked ? 'bg-red-50 border-red-200 hover:bg-red-100' : 'bg-[#f5f5f7] border-[#e8e8ed] hover:bg-[#eeeef0]'
+                  } ${selected?.relationship_id === r.relationship_id ? 'ring-2 ring-[#0071e3]' : ''}`}>
+                  <span className={`font-mono text-xs font-semibold ${r.fraud_linked ? 'text-red-600' : 'text-[#0071e3]'}`}>{r.source_id}</span>
+                  <span className="text-xs text-[#a1a1a6] flex-shrink-0">─ {r.relationship_type.replace(/_/g, ' ')} →</span>
+                  <span className={`font-mono text-xs font-semibold ${r.fraud_linked ? 'text-red-600' : 'text-purple-600'}`}>{r.target_id}</span>
+                  {r.fraud_linked && <span className="ml-auto text-xs font-medium px-2 py-0.5 rounded-full bg-red-100 text-red-600 border border-red-200">Fraud</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

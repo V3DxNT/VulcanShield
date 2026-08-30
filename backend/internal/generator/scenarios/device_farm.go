@@ -35,7 +35,7 @@ func (d *DeviceFarmScenario) Next(idx int, rng *rand.Rand, pool *models.EntityPo
 		IPAddress:     ipAddr,
 		MerchantID:    merchantID,
 		Amount:        amount,
-		Currency:      "USD",
+		Currency:      "INR",
 		Channel:       "MOBILE",
 		Status:        models.StatusPending,
 		Timestamp:     now,

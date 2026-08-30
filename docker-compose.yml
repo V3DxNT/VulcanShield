@@ -146,6 +146,8 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
+    environment:
+      BACKEND_URL: http://backend:8080
     depends_on:
       - backend
 

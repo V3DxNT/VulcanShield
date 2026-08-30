@@ -35,7 +35,7 @@ func (ip *IPAbuseScenario) Next(idx int, rng *rand.Rand, pool *models.EntityPool
 		IPAddress:     sharedIP,
 		MerchantID:    merchantID,
 		Amount:        amount,
-		Currency:      "USD",
+		Currency:      "INR",
 		Channel:       "WEB",
 		Status:        models.StatusPending,
 		Timestamp:     now,

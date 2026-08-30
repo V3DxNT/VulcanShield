@@ -8,14 +8,21 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Helvetica Neue', 'Helvetica', 'sans-serif'],
+      },
       colors: {
-        background: '#090d16',
-        card: '#111827',
-        border: '#1f2937',
-        primary: '#3b82f6',
-        danger: '#ef4444',
-        warning: '#f59e0b',
-        success: '#10b981',
+        apple: {
+          blue: '#0071e3',
+          gray: '#f5f5f7',
+          dark: '#1d1d1f',
+          mid: '#6e6e73',
+          light: '#a1a1a6',
+          border: '#d2d2d7',
+          green: '#30d158',
+          amber: '#ff9f0a',
+          red: '#ff3b30',
+        }
       },
     },
   },

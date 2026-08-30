@@ -1,6 +1,5 @@
 'use client';
-
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 interface OTPModalProps {
   challengeID: string;
@@ -26,12 +25,9 @@ export default function OTPModal({ challengeID, transactionID, onClose, onSucces
       const data = await res.json();
       setResult(data);
       if (res.ok && data.status === 'VERIFIED') {
-        setTimeout(() => {
-          onSuccess();
-          onClose();
-        }, 1500);
+        setTimeout(() => { onSuccess(); onClose(); }, 1500);
       }
-    } catch (e) {
+    } catch {
       setResult({ message: 'Verification request failed' });
     } finally {
       setLoading(false);
@@ -39,53 +35,46 @@ export default function OTPModal({ challengeID, transactionID, onClose, onSucces
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="font-bold text-base text-white flex items-center gap-2">
-            Step-Up Authentication Challenge
-          </h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-white text-lg">×</button>
-        </div>
-
-        <p className="text-xs text-slate-400 mb-4">
-          Transaction <span className="font-mono text-blue-400">{transactionID}</span> triggered a step-up OTP requirement (60s expiration).
-        </p>
-
-        <div className="mb-4">
-          <label className="block text-xs font-mono text-slate-300 mb-1">Enter 6-Digit OTP Code</label>
-          <input
-            type="text"
-            maxLength={6}
-            value={otpCode}
-            onChange={(e) => setOtpCode(e.target.value)}
-            placeholder="381924"
-            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 font-mono text-lg text-center tracking-widest text-white focus:outline-none focus:border-amber-500"
-          />
-        </div>
-
-        {result && (
-          <div className={`p-3 rounded-lg text-xs font-mono mb-4 ${
-            result.status === 'VERIFIED' ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400' : 'bg-rose-500/10 border border-rose-500/30 text-rose-400'
-          }`}>
-            {result.message}
+    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl border border-[#d2d2d7] shadow-2xl w-full max-w-sm">
+        <div className="px-6 py-5 border-b border-[#e8e8ed] flex justify-between items-center">
+          <div>
+            <h3 className="font-semibold text-[#1d1d1f] text-base">Step-Up Verification</h3>
+            <p className="text-xs text-[#6e6e73] mt-0.5 font-mono">{transactionID}</p>
           </div>
-        )}
+          <button onClick={onClose} className="h-8 w-8 flex items-center justify-center rounded-full bg-[#f5f5f7] hover:bg-[#e8e8ed] text-[#6e6e73] transition-colors text-lg">×</button>
+        </div>
 
-        <div className="flex gap-3">
-          <button
-            onClick={onClose}
-            className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleVerify}
-            disabled={loading || otpCode.length < 6}
-            className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs shadow-lg shadow-amber-500/20"
-          >
-            Submit OTP
-          </button>
+        <div className="px-6 py-5">
+          <div className="flex items-start gap-3 p-3.5 rounded-xl bg-amber-50 border border-amber-200 mb-5">
+            <div className="h-8 w-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 font-bold text-sm flex-shrink-0">!</div>
+            <div>
+              <p className="text-sm font-medium text-amber-800">OTP Required</p>
+              <p className="text-xs text-amber-700 mt-0.5">This transaction was flagged as suspicious. Enter the 6-digit OTP to proceed (60s expiration).</p>
+            </div>
+          </div>
+
+          <label className="block text-xs font-medium text-[#6e6e73] mb-1.5">6-Digit OTP Code</label>
+          <input
+            type="text" maxLength={6} value={otpCode}
+            onChange={e => setOtpCode(e.target.value.replace(/\D/g, ''))}
+            placeholder="• • • • • •"
+            className="w-full bg-[#f5f5f7] border border-[#d2d2d7] rounded-xl px-4 py-3.5 text-2xl font-mono tracking-[0.5em] text-center text-[#1d1d1f] focus:outline-none focus:border-[#0071e3] focus:ring-2 focus:ring-[#0071e3]/20 mb-4"
+          />
+
+          {result && (
+            <div className={`p-3 rounded-xl text-sm mb-4 ${result.status === 'VERIFIED' ? 'bg-green-50 border border-green-200 text-green-700' : 'bg-red-50 border border-red-200 text-red-700'}`}>
+              {result.status === 'VERIFIED' ? '✓ ' : '✗ '}{result.message}
+            </div>
+          )}
+
+          <div className="flex gap-3">
+            <button onClick={onClose} className="flex-1 py-2.5 bg-[#f5f5f7] hover:bg-[#e8e8ed] text-[#1d1d1f] font-medium text-sm rounded-xl border border-[#d2d2d7] transition-colors">Cancel</button>
+            <button onClick={handleVerify} disabled={loading || otpCode.length < 6}
+              className="flex-1 py-2.5 bg-[#0071e3] hover:bg-[#0077ed] text-white font-medium text-sm rounded-xl transition-colors disabled:opacity-50">
+              {loading ? 'Verifying…' : 'Verify OTP'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
