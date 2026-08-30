@@ -182,7 +182,9 @@ Implementation Notes:
 
 ---
 
-# PHASE 4 — Transaction Generator
+# PHASE 4 — Transaction Generator [DONE]
+
+Status: DONE
 
 Goal:
 
@@ -190,28 +192,43 @@ Create synthetic payment traffic.
 
 Implement:
 
-- normal traffic generator
-- scenario engine
-- transaction generation
-- configurable transaction count
-- configurable interval
-- scenario start
-- scenario stop
+- normal traffic generator [DONE]
+- scenario engine [DONE]
+- transaction generation [DONE]
+- configurable transaction count [DONE]
+- configurable interval [DONE]
+- scenario start (`POST /api/v1/scenarios/start`) [DONE]
+- scenario stop (`POST /api/v1/scenarios/stop`) [DONE]
+- scenario status (`GET /api/v1/scenarios/status`) [DONE]
+- transaction queries (`GET /api/v1/transactions`, `GET /api/v1/transactions/{id}`) [DONE]
 
 Scenarios:
 
-- normal
-- velocity attack
-- account takeover
-- device farm
-- IP abuse
-- amount anomaly
+- normal [DONE]
+- velocity attack (`velocity_attack`) [DONE]
+- account takeover (`account_takeover`) [DONE]
+- device farm / reuse (`device_farm`) [DONE]
+- IP abuse (`ip_abuse`) [DONE]
+- amount anomaly (`amount_anomaly`) [DONE]
 
 Validation:
 
-Starting a scenario produces transactions.
+- Starting a scenario produces deterministic synthetic transactions [DONE]
+- Starting while another scenario is RUNNING returns HTTP 409 Conflict [DONE]
+- Transactions are persisted into PostgreSQL `transactions` table (authoritative store) [DONE]
+- Scenario runs tracked in PostgreSQL `scenarios` table [DONE]
+- Audit logs inserted into PostgreSQL `audit_events` table (`TRANSACTION_CREATED`) [DONE]
+- Events emitted to Kafka topic `transaction.created` [DONE]
+- Unit and integration tests pass cleanly [DONE]
+- Backend container `vulcanshield-backend` built and running [DONE]
 
-Transactions appear in PostgreSQL and Kafka.
+Implementation Notes:
+- Standard library HTTP layer: `net/http`, `http.ServeMux`, `http.Handler` using Go 1.22+ patterns.
+- Seeded pseudo-random number generator (`math/rand`) guarantees 100% deterministic, reproducible transaction streams for hackathon demos.
+- Scenario Engine (`generator.Engine`) uses cancellable context-based lifecycle control with guaranteed goroutine termination on `Stop()`.
+- Generator logic is cleanly decoupled from persistence and event emission.
+- Non-fatal Kafka failure handling: Kafka error logs a warning but never suppresses PostgreSQL transaction persistence.
+- Sane pagination enforced on `/transactions` list endpoint (default 20, max 100).
 
 ---
 

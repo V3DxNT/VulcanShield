@@ -2,25 +2,31 @@ package v1
 
 import "net/http"
 
+// Handlers holds all Phase 4+ HTTP handler groups.
+type Handlers struct {
+	Scenarios    *ScenarioHandlers
+	Transactions *TransactionHandlers
+}
+
 // Mount registers all /api/v1/* routes onto mux.
 // Health routes (/health, /ready) are mounted directly on the root mux
 // by the router — not here.
-//
-// Future route stubs (Phase 4+):
-//
-//	POST   /api/v1/transactions
-//	GET    /api/v1/transactions/{id}
-//	GET    /api/v1/transactions
-//	POST   /api/v1/scenarios/{type}/start
-//	POST   /api/v1/scenarios/{id}/stop
-//	GET    /api/v1/scenarios/{id}/status
-//	WS     /api/v1/ws
-//	POST   /api/v1/challenges/{id}/verify
-//	GET    /api/v1/investigations/{id}
-func Mount(mux *http.ServeMux, h *HealthHandlers) {
-	// Phase 3 only exposes health/readiness on the root mux (see server/router.go).
-	// This function is the single registration point for future /api/v1/ routes.
-	// Each subsequent phase will add its handler registrations here.
-	_ = mux
-	_ = h
+func Mount(mux *http.ServeMux, h *Handlers) {
+	// ── Phase 4: Scenario Control ─────────────────────────────────────────────
+	if h.Scenarios != nil {
+		mux.HandleFunc("POST /api/v1/scenarios/start", h.Scenarios.Start)
+		mux.HandleFunc("POST /api/v1/scenarios/stop", h.Scenarios.Stop)
+		mux.HandleFunc("GET /api/v1/scenarios/status", h.Scenarios.Status)
+	}
+
+	// ── Phase 4: Transaction Queries ──────────────────────────────────────────
+	if h.Transactions != nil {
+		mux.HandleFunc("GET /api/v1/transactions/{id}", h.Transactions.GetByID)
+		mux.HandleFunc("GET /api/v1/transactions", h.Transactions.List)
+	}
+
+	// Future route stubs (Phase 5+):
+	//   WS     /api/v1/ws
+	//   POST   /api/v1/challenges/{id}/verify
+	//   GET    /api/v1/investigations/{id}
 }

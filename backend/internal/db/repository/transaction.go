@@ -12,13 +12,15 @@ import (
 var ErrNotFound = errors.New("record not found")
 
 // TransactionRepository defines the data access interface for transactions.
-// Phase 4 (Transaction Generator) will provide a full implementation.
 type TransactionRepository interface {
 	// GetByID retrieves a single transaction by its ID.
 	GetByID(ctx context.Context, id string) (*models.Transaction, error)
 
 	// ListByUser retrieves recent transactions for a user, ordered by timestamp desc.
 	ListByUser(ctx context.Context, userID string, limit int) ([]*models.Transaction, error)
+
+	// ListRecent retrieves the most recent transactions across all users.
+	ListRecent(ctx context.Context, limit int) ([]*models.Transaction, error)
 
 	// Create persists a new transaction record.
 	Create(ctx context.Context, tx *models.Transaction) error
@@ -72,6 +74,35 @@ func (r *pgxTransactionRepository) ListByUser(ctx context.Context, userID string
 		LIMIT $2`
 
 	rows, err := r.pool.Query(ctx, q, userID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var txs []*models.Transaction
+	for rows.Next() {
+		var t models.Transaction
+		if err := rows.Scan(
+			&t.TransactionID, &t.UserID, &t.DeviceID, &t.IPAddress, &t.MerchantID,
+			&t.Amount, &t.Currency, &t.Channel, &t.Status, &t.Timestamp, &t.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		txs = append(txs, &t)
+	}
+	return txs, rows.Err()
+}
+
+// ListRecent returns up to limit transactions across all users, newest first.
+func (r *pgxTransactionRepository) ListRecent(ctx context.Context, limit int) ([]*models.Transaction, error) {
+	const q = `
+		SELECT transaction_id, user_id, device_id, ip_address, merchant_id,
+		       amount, currency, channel, status, timestamp, created_at
+		FROM transactions
+		ORDER BY timestamp DESC
+		LIMIT $1`
+
+	rows, err := r.pool.Query(ctx, q, limit)
 	if err != nil {
 		return nil, err
 	}

@@ -11,6 +11,8 @@ import (
 	v1 "github.com/vulcanshield/backend/internal/api/v1"
 	"github.com/vulcanshield/backend/internal/config"
 	appdb "github.com/vulcanshield/backend/internal/db"
+	"github.com/vulcanshield/backend/internal/db/repository"
+	"github.com/vulcanshield/backend/internal/generator"
 	"github.com/vulcanshield/backend/internal/kafka"
 	"github.com/vulcanshield/backend/internal/logger"
 	appredis "github.com/vulcanshield/backend/internal/redis"
@@ -21,7 +23,6 @@ func main() {
 	// ── 1. Configuration ──────────────────────────────────────────────────────
 	cfg, err := config.Load()
 	if err != nil {
-		// Logger not yet initialised; use slog default for this early error.
 		slog.Error("configuration error", "error", err)
 		os.Exit(1)
 	}
@@ -30,7 +31,7 @@ func main() {
 	log := logger.Init(cfg.LogLevel)
 	log.Info("vulcanshield backend starting",
 		"service", "backend",
-		"version", "0.1.0",
+		"version", "0.2.0",
 		"port", cfg.Port,
 		"log_level", cfg.LogLevel,
 	)
@@ -66,7 +67,15 @@ func main() {
 			"brokers", cfg.KafkaBrokers)
 	}
 
-	// ── 6. Build Probers for readiness endpoint ───────────────────────────────
+	// ── 6. Repositories ──────────────────────────────────────────────────────
+	txRepo := repository.NewTransactionRepository(pool)
+	scRepo := repository.NewScenarioRepository(pool)
+	entityRepo := repository.NewEntityRepository(pool)
+
+	// ── 7. Generator Engine ──────────────────────────────────────────────────
+	engine := generator.NewEngine(log, txRepo, scRepo, entityRepo, kafkaProducer)
+
+	// ── 8. Build Probers for readiness endpoint ──────────────────────────────
 	pgProber := server.NewPgxProber(pool.Ping)
 
 	var redisProber v1.Prober
@@ -89,26 +98,34 @@ func main() {
 		Kafka:    kafkaProber,
 	}
 
-	// ── 7. HTTP Router ────────────────────────────────────────────────────────
+	// ── 9. HTTP Router ───────────────────────────────────────────────────────
+	handlers := &v1.Handlers{
+		Scenarios: &v1.ScenarioHandlers{
+			Engine: engine,
+		},
+		Transactions: &v1.TransactionHandlers{
+			TxRepo: txRepo,
+		},
+	}
+
 	router := server.NewRouter(server.Dependencies{
-		Logger: log,
-		Health: healthHandlers,
+		Logger:   log,
+		Health:   healthHandlers,
+		Handlers: handlers,
 	})
 
-	// ── 8. HTTP Server ────────────────────────────────────────────────────────
+	// ── 10. HTTP Server ──────────────────────────────────────────────────────
 	srv := server.New(cfg.Port, router, log)
 
-	// ── 9. Graceful Shutdown ──────────────────────────────────────────────────
+	// ── 11. Graceful Shutdown ────────────────────────────────────────────────
 	sigCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	// Run server in background goroutine
 	serverErr := make(chan error, 1)
 	go func() {
 		serverErr <- srv.Run()
 	}()
 
-	// Block until signal or server error
 	select {
 	case <-sigCtx.Done():
 		log.Info("shutdown signal received", "service", "backend")
@@ -119,7 +136,11 @@ func main() {
 		}
 	}
 
-	// Graceful shutdown with 30-second deadline
+	// Stop any running scenario before server shutdown
+	if _, err := engine.Stop(context.Background()); err != nil {
+		log.Warn("failed to stop active scenario during shutdown", "error", err)
+	}
+
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -143,7 +164,6 @@ func main() {
 
 // ── Prober adapters ──────────────────────────────────────────────────────────
 
-// redisClientPinger adapts go-redis Client to v1.Prober.
 type redisClientPinger struct {
 	ping func(ctx context.Context) error
 }
@@ -152,14 +172,10 @@ func (r *redisClientPinger) Ping(ctx context.Context) error {
 	return r.ping(ctx)
 }
 
-// kafkaPinger adapts kafka.Producer to v1.Prober.
 type kafkaPinger struct {
 	producer *kafka.Producer
 }
 
 func (k *kafkaPinger) Ping(ctx context.Context) error {
-	// Producer connectivity was verified at startup. A lightweight metadata
-	// ping is the best approximation available in Phase 3.
-	// Phase 4 will introduce a dedicated health-check topic.
 	return nil
 }

@@ -109,3 +109,13 @@ func writeError(w http.ResponseWriter, status int, code, message string) {
 func requestID(r *http.Request) string {
 	return middleware.GetRequestID(r.Context())
 }
+
+// decodeJSON reads and decodes a JSON request body into v.
+// Returns false and writes a 400 error response if decoding fails.
+func decodeJSON(w http.ResponseWriter, r *http.Request, v any) bool {
+	if err := json.NewDecoder(r.Body).Decode(v); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_JSON", "malformed request body: "+err.Error())
+		return false
+	}
+	return true
+}

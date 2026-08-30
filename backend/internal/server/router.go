@@ -13,14 +13,15 @@ import (
 // Each field is optional in the sense that nil values degrade gracefully,
 // but PostgreSQL is required at startup per project architecture.
 type Dependencies struct {
-	Logger *slog.Logger
-	Health *v1.HealthHandlers
+	Logger   *slog.Logger
+	Health   *v1.HealthHandlers
+	Handlers *v1.Handlers // Phase 4+: scenario, transaction, etc.
 }
 
 // NewRouter builds the HTTP handler tree using stdlib http.ServeMux.
 // Uses Go 1.22+ method-qualified routing patterns.
 // Middleware applied (outer → inner): RequestID, StructuredLogger, Recovery.
-// CORS is isolated in middleware/cors.go and NOT applied in Phase 3.
+// CORS is isolated in middleware/cors.go and NOT applied until Phase 12.
 func NewRouter(deps Dependencies) http.Handler {
 	mux := http.NewServeMux()
 
@@ -28,8 +29,10 @@ func NewRouter(deps Dependencies) http.Handler {
 	mux.HandleFunc("GET /health", deps.Health.Health)
 	mux.HandleFunc("GET /ready", deps.Health.Ready)
 
-	// API v1 routes — Phase 4+ will add routes here
-	v1.Mount(mux, deps.Health)
+	// API v1 routes — Phase 4 scenario + transaction routes
+	if deps.Handlers != nil {
+		v1.Mount(mux, deps.Handlers)
+	}
 
 	// Apply middleware chain (outermost first)
 	return middleware.Chain(
