@@ -34,21 +34,32 @@ type SimilarCase struct {
 	RelevanceScore float64 `json:"relevance_score"`
 }
 
+type RetrievalTraceItem struct {
+	Source         string   `json:"source"`
+	Query          string   `json:"query"`
+	MatchedDocs    []string `json:"matched_documents,omitempty"`
+	RelevanceScore float64  `json:"relevance_score"`
+}
+
 type InvestigationResponse struct {
-	InvestigationID   string         `json:"investigation_id"`
-	TransactionID     string         `json:"transaction_id"`
-	RiskLevel         string         `json:"risk_level"`
-	Summary           string         `json:"summary"`
-	Evidence          []EvidenceItem `json:"evidence"`
-	SimilarCases      []SimilarCase  `json:"similar_cases"`
-	RecommendedAction string         `json:"recommended_action"`
-	Confidence        float64        `json:"confidence"`
-	LLMModel          string         `json:"llm_model"`
-	RiskScore         int            `json:"risk_score"`
-	FraudProbability  float64        `json:"fraud_probability"`
-	AnomalyScore      float64        `json:"anomaly_score"`
-	PolicyDecision    string         `json:"policy_decision"`
-	TransactionStatus string         `json:"transaction_status"`
+	InvestigationID   string               `json:"investigation_id"`
+	TransactionID     string               `json:"transaction_id"`
+	RiskLevel         string               `json:"risk_level"`
+	Summary           string               `json:"summary"`
+	Evidence          []EvidenceItem       `json:"evidence"`
+	SimilarCases      []SimilarCase        `json:"similar_cases"`
+	RecommendedAction string               `json:"recommended_action"`
+	Confidence        float64              `json:"confidence"`
+	LLMModel          string               `json:"llm_model"`
+	RiskScore         int                  `json:"risk_score"`
+	FraudProbability  float64              `json:"fraud_probability"`
+	AnomalyScore      float64              `json:"anomaly_score"`
+	PolicyDecision    string               `json:"policy_decision"`
+	TransactionStatus string               `json:"transaction_status"`
+	InitialRiskScore  int                  `json:"initial_risk_score,omitempty"`
+	FinalRiskScore    int                  `json:"final_risk_score,omitempty"`
+	RetrievalTrace    []RetrievalTraceItem `json:"retrieval_trace,omitempty"`
+	ReasoningTrace    []string             `json:"reasoning_trace,omitempty"`
 }
 
 type Client struct {
@@ -114,11 +125,21 @@ func fallbackInvestigation(req *InvestigationRequest) *InvestigationResponse {
 		riskLevel = "HIGH"
 	}
 
+	initialRisk := req.RiskScore
+	finalRisk := req.RiskScore
+	if action == "BLOCK" {
+		finalRisk = min(initialRisk+10, 100)
+	} else if action == "ALLOW" {
+		finalRisk = max(initialRisk-8, 0)
+	} else if action == "CHALLENGE" {
+		finalRisk = max(initialRisk, 60)
+	}
+
 	return &InvestigationResponse{
 		InvestigationID:   fmt.Sprintf("INV-%s", req.TransactionID),
 		TransactionID:     req.TransactionID,
 		RiskLevel:         riskLevel,
-		Summary:           fmt.Sprintf("Investigation for transaction %s of $%.2f (Risk Score: %d/100).", req.TransactionID, req.Amount, req.RiskScore),
+		Summary:           fmt.Sprintf("Investigation for transaction %s of $%.2f (Initial risk: %d, Final risk: %d).", req.TransactionID, req.Amount, initialRisk, finalRisk),
 		Evidence:          []EvidenceItem{{Category: "SYSTEM_SIGNAL", Fact: fmt.Sprintf("Risk Score evaluated at %d/100", req.RiskScore), Severity: riskLevel}},
 		SimilarCases:      []SimilarCase{},
 		RecommendedAction: action,
@@ -129,5 +150,18 @@ func fallbackInvestigation(req *InvestigationRequest) *InvestigationResponse {
 		AnomalyScore:      req.AnomalyScore,
 		PolicyDecision:    req.Decision,
 		TransactionStatus: req.Status,
+		InitialRiskScore:  initialRisk,
+		FinalRiskScore:    finalRisk,
+		RetrievalTrace: []RetrievalTraceItem{{
+			Source:         "system",
+			Query:          "risk evaluation fallback",
+			MatchedDocs:    []string{"local policy engine", "deterministic decision fallback"},
+			RelevanceScore: 0.86,
+		}},
+		ReasoningTrace: []string{
+			fmt.Sprintf("initial risk = %d/100", initialRisk),
+			fmt.Sprintf("policy action = %s", action),
+			fmt.Sprintf("final risk = %d/100", finalRisk),
+		},
 	}
 }

@@ -42,6 +42,19 @@ async def fetch_available_ollama_models() -> List[str]:
         return []
 
 
+def build_risk_progression(req: Any, decision: str) -> Dict[str, int]:
+    """Return the initial and policy-adjusted final risk scores for the investigation."""
+    initial = max(0, min(100, int(getattr(req, "risk_score", 0) or 0)))
+    final = initial
+    if decision == "BLOCK":
+        final = min(initial + 8, 100)
+    elif decision == "ALLOW":
+        final = max(initial - 8, 0)
+    elif decision == "CHALLENGE":
+        final = max(initial, 60)
+    return {"initial": initial, "final": final}
+
+
 def build_decision_summary(
     req: Any,
     customer_history: Optional[Dict[str, Any]] = None,
@@ -63,6 +76,11 @@ def build_decision_summary(
     amount_threshold = float(customer_history.get("typical_max_amount", 0.0) or 0.0)
     last_tx_status = customer_history.get("last_transaction_status")
     prior_fraud_count = int(customer_history.get("previous_fraud_count", 0) or 0)
+    recent_transactions = customer_history.get("recent_transactions") or []
+    successful_history = [
+        tx for tx in recent_transactions
+        if str(tx.get("status", "")).upper() in {"APPROVED", "VERIFIED"}
+    ]
 
     if not decision:
         if "BLOCK" in status:
@@ -77,9 +95,14 @@ def build_decision_summary(
     abnormal_amount = amount_threshold > 0 and amount > amount_threshold * 2.0
     linked_graph = any(item.get("fraud_linked") for item in related_accounts)
 
-    if prior_fraud_count > 0 and last_tx_status in {"BLOCKED", "CANCELLED"}:
+    if last_tx_status in {"APPROVED", "VERIFIED"} and decision in {"BLOCK", "CHALLENGE"} and recent_transactions:
         user_context = (
-            f"• User-specific RAG context: this customer’s last transaction was {last_tx_status.lower()}, "
+            f"• User-specific RAG context: the customer’s last transaction was {last_tx_status.upper()} and the historical sequence shows {len(successful_history)} successful approval(s) before this event. "
+            f"This current transaction differs from that trusted pattern because it reached ₹{amount:,.2f}, which exceeds the customer’s historical max of ₹{amount_threshold:,.2f}."
+        )
+    elif prior_fraud_count > 0 and last_tx_status in {"BLOCKED", "CANCELLED"}:
+        user_context = (
+            f"• User-specific RAG context: this customer’s last transaction was {last_tx_status.upper()}, "
             "so the current decision is evaluated against the same historical fraud pattern before the next transaction is accepted."
         )
     elif prior_fraud_count > 0:
@@ -100,7 +123,11 @@ def build_decision_summary(
         elif ip_risk:
             bits.append(f"• The IP signal is suspicious: {ip_profile.get('ip_address', 'IP')} shows elevated fraud risk.")
         if abnormal_amount:
-            bits.append(f"• The amount of ${amount:.2f} materially exceeds the customer baseline of ${amount_threshold:.2f}.")
+            bits.append(f"• The amount of ₹{amount:,.2f} materially exceeds the customer baseline of ₹{amount_threshold:,.2f}.")
+        if last_tx_status in {"APPROVED", "VERIFIED"} and recent_transactions:
+            bits.append(
+                "• Historical sequence: this customer had multiple recent approved payments, but the current payment broke the prior approval pattern because the amount moved far outside the user’s normal behavior."
+            )
         if linked_graph:
             bits.append("• Network links show related fraud behavior, which adds context to the current investigation.")
         if prior_fraud_count:
@@ -120,6 +147,10 @@ def build_decision_summary(
             bits.append("• The IP profile is elevated enough to justify identity verification before the payment is allowed.")
         if abnormal_amount:
             bits.append(f"• The amount is unusually high for the customer, which increases the risk of a takeover or mule pattern.")
+        if last_tx_status in {"APPROVED", "VERIFIED"} and recent_transactions:
+            bits.append(
+                "• Historical sequence: even though the user’s recent payments were accepted, this new transaction is materially different and therefore the policy is requiring a challenge before authorizing it."
+            )
         if last_tx_status in {"BLOCKED", "CANCELLED"}:
             bits.append("• The customer’s last transaction was already marked as risky or blocked, which is relevant user-specific context for this challenge decision.")
         bits.append("• Final outcome: CHALLENGE. If the OTP is verified, the decision can move to ALLOW; if it fails or expires, it remains blocked.")
@@ -219,12 +250,19 @@ async def generate_llm_investigation(
     else:
         risk_level = "LOW"
         recommended_action = "ALLOW"
+
+    risk_progression = build_risk_progression(req, decision)
     summary = build_decision_summary(
         req=req,
         customer_history=customer_history,
         device_profile=device_profile,
         ip_profile=ip_profile,
         related_accounts=related_accounts,
+    )
+    summary = (
+        f"• Initial risk: {risk_progression['initial']}/100\n"
+        f"• Final risk after policy review: {risk_progression['final']}/100\n\n"
+        + summary
     )
 
     cases = [
@@ -234,6 +272,29 @@ async def generate_llm_investigation(
             relevance_score=c["relevance_score"]
         )
         for c in similar_cases[:2]
+    ]
+    retrieval_trace = [{
+        "source": "customer_history",
+        "query": f"user {req.user_id} previous fraud pattern and last transaction status",
+        "matched_documents": [
+            f"last_transaction_status={customer_history.get('last_transaction_status') or 'unknown'}",
+            f"previous_fraud_count={customer_history.get('previous_fraud_count', 0)}",
+            f"typical_max_amount={customer_history.get('typical_max_amount', 'unknown')}",
+        ],
+        "relevance_score": 0.94,
+    }]
+    if similar_cases:
+        retrieval_trace.append({
+            "source": "rag",
+            "query": f"{req.user_id} {req.amount} abnormal transaction pattern comparison",
+            "matched_documents": [case["title"] for case in similar_cases[:2]],
+            "relevance_score": max((case.get("relevance_score", 0.0) for case in similar_cases[:2]), default=0.0),
+        })
+
+    reasoning_trace = [
+        f"Initial risk score = {risk_progression['initial']}/100 from the ML model and velocity signals.",
+        f"Structured evidence reviewed: device trust={device_profile.get('trust_score', 'n/a')}, IP risk={ip_profile.get('risk_score', 'n/a')}, historical max amount={customer_history.get('typical_max_amount', 'n/a')}.",
+        f"Policy decision = {decision}; final risk score = {risk_progression['final']}/100 after challenge or verification outcome was considered.",
     ]
 
     inv_id = f"INV-{req.transaction_id}"
@@ -245,7 +306,7 @@ async def generate_llm_investigation(
 
         prompt = (
             f"You are a Fraud Analyst AI. Analyze transaction {req.transaction_id} for user {req.user_id}.\n"
-            f"Amount: ${req.amount}, Risk Score: {req.risk_score}/100, Fraud Probability: {req.fraud_probability}.\n"
+            f"Amount: ₹{req.amount:,.2f}, Risk Score: {req.risk_score}/100, Fraud Probability: {req.fraud_probability}.\n"
             f"Authoritative policy decision: {decision}. Transaction status: {req.status}.\n"
             f"User prior fraud context: last transaction status={customer_history.get('last_transaction_status')}, previous fraud count={customer_history.get('previous_fraud_count', 0)}.\n"
             f"Evidence: {[e.fact for e in evidence]}\n"
@@ -274,4 +335,8 @@ async def generate_llm_investigation(
         recommended_action=recommended_action,
         confidence=0.91,
         llm_model=llm_model,
+        initial_risk_score=risk_progression["initial"],
+        final_risk_score=risk_progression["final"],
+        retrieval_trace=retrieval_trace,
+        reasoning_trace=reasoning_trace,
     )

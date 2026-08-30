@@ -39,16 +39,34 @@ async def investigate(req: InvestigationRequest):
             related_accounts = await get_related_accounts(db_pool, req.user_id)
 
             last_status = customer_history.get("last_transaction_status")
+            recent_txns = customer_history.get("recent_transactions", [])
+            history_summary = " | ".join(
+                f"{tx.get('status', 'UNKNOWN')}:{tx.get('amount', 0)}"
+                for tx in recent_txns[:4]
+            )
+
             if customer_history.get("previous_fraud_count", 0) > 0 and last_status in {"BLOCKED", "CANCELLED"}:
                 query = "repeat fraud pattern after previous blocked transaction"
-            elif req.amount > customer_history.get("typical_max_amount", float("inf")) * 2:
-                query = "account takeover abnormal amount"
+            elif last_status in {"APPROVED", "VERIFIED"} and req.amount > customer_history.get("typical_max_amount", float("inf")) * 2:
+                query = (
+                    f"customer {req.user_id} had recent approved transactions ({history_summary}), "
+                    f"but current amount ₹{req.amount:,.2f} exceeds normal pattern and looks like account takeover anomaly"
+                )
             elif related_accounts:
-                query = "device reuse and linked fraud account pattern"
+                query = (
+                    f"device reuse and linked fraud account pattern for user {req.user_id}; "
+                    f"recent history: {history_summary}"
+                )
             elif req.risk_score >= 60:
-                query = "velocity attack automated card testing"
+                query = (
+                    f"velocity attack automated card testing for user {req.user_id}; "
+                    f"recent statuses: {history_summary}"
+                )
             else:
-                query = "normal payment customer behavior"
+                query = (
+                    f"normal payment customer behavior for user {req.user_id}; "
+                    f"recent statuses: {history_summary}"
+                )
             similar_cases = await get_similar_fraud_cases(db_pool, query)
         except Exception as e:
             print(f"Tool execution warning: {e}")

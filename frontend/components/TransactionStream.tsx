@@ -75,7 +75,18 @@ export default function TransactionStream({ onSelectTx }: Props) {
   }, [fetchTxList]);
 
   const filtered = txs.filter(tx => {
-    const matchesStatus = filter === 'all' ? true : tx.status === filter.toUpperCase();
+    const isApproved = tx.status === 'APPROVED' || tx.challenge_status === 'VERIFIED';
+    const isChallenged = tx.status === 'CHALLENGED' || ['PENDING', 'VERIFIED', 'FAILED', 'EXPIRED'].includes(tx.challenge_status ?? '');
+    const isBlocked = tx.status === 'BLOCKED' || tx.challenge_status === 'FAILED' || tx.challenge_status === 'EXPIRED';
+
+    const matchesStatus = filter === 'all'
+      ? true
+      : filter === 'approved'
+        ? isApproved
+        : filter === 'challenged'
+          ? isChallenged
+          : isBlocked;
+
     const matchesUser = userQuery.trim() === '' || tx.user_id.toLowerCase().includes(userQuery.toLowerCase());
     return matchesStatus && matchesUser;
   });

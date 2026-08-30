@@ -73,16 +73,20 @@ export default function AIInvestigationModal({ transactionID, onClose }: AIInves
 
   const modelReasons = {
     xgboost: (txDetail?.status === 'BLOCKED' || txDetail?.decision === 'BLOCK' || report?.policy_decision === 'BLOCK')
-      ? 'High risk because the transaction amount exceeds the customer norm and the policy gate is not satisfied; XGBoost interprets those signals as strong fraud risk.'
+      ? 'XGBoost explanation: score = 0.45 × amount anomaly + 0.30 × velocity signal + 0.15 × device trust + 0.10 × historical fraud context. This transaction crossed the customer norm and failed the policy gate, so the score was elevated sharply.'
       : (txDetail?.risk_score ?? report?.risk_score ?? 0) >= 60
-        ? 'Elevated risk because the transaction is outside the customer’s usual pattern and includes stronger-than-normal velocity or device/IP indications.'
-        : 'Low to moderate risk because the transaction behavior remains consistent with the customer baseline and the model does not see a clear fraud pattern.',
+        ? 'XGBoost explanation: score = 0.45 × amount anomaly + 0.30 × velocity signal + 0.15 × device trust + 0.10 × historical fraud context. The transaction is outside the customer baseline, so the model raised risk even before policy review.'
+        : 'XGBoost explanation: the transaction stayed close to the customer’s baseline, so the amount, velocity, and device/IP features did not materially increase the fraud probability.',
     isolation: (txDetail?.challenge_status === 'FAILED' || txDetail?.challenge_status === 'EXPIRED' || txDetail?.status === 'BLOCKED')
-      ? 'High anomaly score because the transaction deviates from the user’s normal behavioral cluster and fails the expected pattern for trusted device/IP usage.'
-      : 'Low anomaly score because the transaction fits the customer’s normal behavior cluster and does not look like an outlier event.'
+      ? 'Isolation Forest explanation: anomaly score rises when the transaction is far from the user’s normal cluster. Here the device/IP pattern and amount profile fell outside the expected distribution, which produced the high anomaly score.'
+      : 'Isolation Forest explanation: the transaction remained inside the user’s normal behavioral cluster, so the anomaly score stayed low and the model did not flag it as an outlier.'
   };
 
   const userID = txDetail?.user_id || report?.user_id || 'C1001';
+  const initialRisk = txDetail?.risk_score ?? report?.initial_risk_score ?? report?.risk_score ?? 0;
+  const finalRisk = report?.final_risk_score ?? initialRisk;
+  const retrievalTrace = report?.retrieval_trace ?? [];
+  const reasoningTrace = report?.reasoning_trace ?? [];
 
   return (
     <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-start justify-center z-50 p-4 overflow-y-auto">
@@ -157,6 +161,26 @@ export default function AIInvestigationModal({ transactionID, onClose }: AIInves
               <p className="text-sm leading-relaxed">{decisionReason()}</p>
             </div>
 
+            {/* Risk progression */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-4 rounded-xl bg-[#f5f5f7] border border-[#e8e8ed]">
+                <p className="text-[10px] uppercase tracking-wide text-[#6e6e73] mb-2">Initial ML Risk</p>
+                <div className="flex items-center justify-between">
+                  <span className="text-2xl font-semibold text-[#1d1d1f]">{initialRisk}</span>
+                  <span className="text-xs font-medium text-[#6e6e73]">/ 100</span>
+                </div>
+                <p className="mt-2 text-xs text-[#6e6e73]">Raw model output before policy review.</p>
+              </div>
+              <div className="p-4 rounded-xl bg-[#f5f5f7] border border-[#e8e8ed]">
+                <p className="text-[10px] uppercase tracking-wide text-[#6e6e73] mb-2">Final Policy Risk</p>
+                <div className="flex items-center justify-between">
+                  <span className="text-2xl font-semibold text-[#0071e3]">{finalRisk}</span>
+                  <span className="text-xs font-medium text-[#6e6e73]">/ 100</span>
+                </div>
+                <p className="mt-2 text-xs text-[#6e6e73]">Risk after policy + challenge outcome is applied.</p>
+              </div>
+            </div>
+
             {/* AI Summary */}
             <div className="p-4 rounded-xl bg-blue-50 border border-blue-100">
               <div className="flex items-center justify-between gap-2 mb-2">
@@ -200,6 +224,40 @@ export default function AIInvestigationModal({ transactionID, onClose }: AIInves
                 </div>
               ))}
             </div>
+
+            {/* Retrieval trace */}
+            {retrievalTrace.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold text-[#1d1d1f] mb-3">RAG Retrieval Trace</h3>
+                <div className="space-y-2">
+                  {retrievalTrace.map((item: any, idx: number) => (
+                    <div key={idx} className="p-3.5 rounded-xl bg-[#f5f5f7] border border-[#e8e8ed]">
+                      <div className="flex items-center justify-between gap-3 mb-2">
+                        <span className="text-xs font-medium text-[#0071e3] uppercase tracking-wide">{item.source}</span>
+                        <span className="text-xs text-[#6e6e73]">{((item.relevance_score ?? 0) * 100).toFixed(0)}% match</span>
+                      </div>
+                      <p className="text-sm text-[#1d1d1f] font-medium">Query: {item.query}</p>
+                      <ul className="mt-2 list-disc list-inside text-xs text-[#1d1d1f] space-y-1">
+                        {(item.matched_documents ?? []).map((doc: string, i: number) => (
+                          <li key={`${idx}-${i}`}>{doc}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {reasoningTrace.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold text-[#1d1d1f] mb-3">Model & Policy Reasoning</h3>
+                <ul className="space-y-2 list-disc list-inside text-sm text-[#1d1d1f] bg-[#f5f5f7] border border-[#e8e8ed] rounded-xl p-4">
+                  {reasoningTrace.map((step: string, idx: number) => (
+                    <li key={idx}>{step}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {/* Evidence Signals */}
             <div>

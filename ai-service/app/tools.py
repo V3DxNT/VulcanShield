@@ -29,6 +29,20 @@ async def get_customer_history(pool: asyncpg.Pool, user_id: str) -> Dict[str, An
             "SELECT transaction_id, status, amount, created_at FROM transactions WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1",
             user_id,
         )
+        recent_txns = await conn.fetch(
+            "SELECT transaction_id, status, amount, created_at FROM transactions WHERE user_id = $1 ORDER BY created_at DESC LIMIT 5",
+            user_id,
+        )
+
+        recent_transactions = [
+            {
+                "transaction_id": row["transaction_id"],
+                "status": row["status"],
+                "amount": float(row["amount"]),
+                "created_at": str(row["created_at"]),
+            }
+            for row in recent_txns
+        ]
 
         return {
             "user_id": user["user_id"],
@@ -43,6 +57,7 @@ async def get_customer_history(pool: asyncpg.Pool, user_id: str) -> Dict[str, An
             "last_transaction_status": last_tx["status"] if last_tx else None,
             "last_transaction_amount": float(last_tx["amount"]) if last_tx else 0.0,
             "last_transaction_timestamp": str(last_tx["created_at"]) if last_tx else None,
+            "recent_transactions": recent_transactions,
         }
 
 async def get_device_profile(pool: asyncpg.Pool, device_id: str) -> Dict[str, Any]:

@@ -23,6 +23,12 @@ class SimilarCase(BaseModel):
     title: str = Field(..., example="Velocity Attack Patterns in Carding Operations")
     relevance_score: float = Field(..., example=0.92)
 
+class RetrievalTraceItem(BaseModel):
+    source: str = Field(..., example="customer_history")
+    query: str = Field(..., example="user C1001 previous fraud pattern")
+    matched_documents: List[str] = Field(default_factory=list)
+    relevance_score: float = Field(default=0.0, ge=0.0, le=1.0)
+
 class InvestigationResponse(BaseModel):
     investigation_id: str
     transaction_id: str
@@ -33,3 +39,7 @@ class InvestigationResponse(BaseModel):
     recommended_action: str = Field(..., example="BLOCK_ACCOUNT") # ALLOW, CHALLENGE, BLOCK_ACCOUNT, MANUAL_REVIEW
     confidence: float = Field(..., ge=0.0, le=1.0)
     llm_model: str = Field(default="qwen2.5:7b-instruct")
+    initial_risk_score: int = Field(default=0)
+    final_risk_score: int = Field(default=0)
+    retrieval_trace: List[RetrievalTraceItem] = Field(default_factory=list)
+    reasoning_trace: List[str] = Field(default_factory=list)

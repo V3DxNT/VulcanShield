@@ -18,12 +18,12 @@ export default function Home() {
         if (res.ok) {
           const json = await res.json();
           const txs: any[] = json.data ?? [];
+          const approved = txs.filter(t => t.status === 'APPROVED' && !['PENDING', 'VERIFIED', 'FAILED', 'EXPIRED'].includes(t.challenge_status ?? '')).length;
           const otpVerified = txs.filter(t => t.challenge_status === 'VERIFIED').length;
           const otpRejected = txs.filter(t => t.challenge_status === 'FAILED' || t.challenge_status === 'EXPIRED').length;
-          const approved = txs.filter(t => t.status === 'APPROVED' && t.challenge_status !== 'VERIFIED').length;
           const blocked = txs.filter(t => t.status === 'BLOCKED' || t.challenge_status === 'FAILED' || t.challenge_status === 'EXPIRED').length;
-          const challenged = txs.filter(t => t.status === 'CHALLENGED' || t.challenge_status === 'PENDING' || t.challenge_status === 'VERIFIED' || t.challenge_status === 'FAILED' || t.challenge_status === 'EXPIRED').length;
-          const approvedRevenue = txs.filter(t => t.status === 'APPROVED' && t.challenge_status !== 'VERIFIED').reduce((sum, t) => sum + Number(t.amount || 0), 0);
+          const challenged = txs.filter(t => t.status === 'CHALLENGED' || ['PENDING', 'VERIFIED', 'FAILED', 'EXPIRED'].includes(t.challenge_status ?? '')).length;
+          const approvedRevenue = txs.filter(t => t.status === 'APPROVED' && !['PENDING', 'VERIFIED', 'FAILED', 'EXPIRED'].includes(t.challenge_status ?? '')).reduce((sum, t) => sum + Number(t.amount || 0), 0);
           const otpVerifiedRevenue = txs.filter(t => t.challenge_status === 'VERIFIED').reduce((sum, t) => sum + Number(t.amount || 0), 0);
           const otpRejectedRevenue = txs.filter(t => t.challenge_status === 'FAILED' || t.challenge_status === 'EXPIRED').reduce((sum, t) => sum + Number(t.amount || 0), 0);
           const fraudLossAvoided = txs.filter(t => t.status === 'BLOCKED' || t.challenge_status === 'FAILED' || t.challenge_status === 'EXPIRED').reduce((sum, t) => sum + Number(t.amount || 0), 0);
