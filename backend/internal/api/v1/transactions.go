@@ -16,7 +16,10 @@ const (
 
 // TransactionHandlers handles transaction query endpoints.
 type TransactionHandlers struct {
-	TxRepo repository.TransactionRepository
+	TxRepo        repository.TransactionRepository
+	RiskRepo      repository.RiskRepository
+	PolicyRepo    repository.PolicyRepository
+	ChallengeRepo repository.ChallengeRepository
 }
 
 // GetByID handles GET /api/v1/transactions/{id}.
@@ -37,7 +40,36 @@ func (h *TransactionHandlers) GetByID(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "QUERY_FAILED", err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, tx)
+	view := transactionView{Transaction: *tx}
+	if h.RiskRepo != nil {
+		if ra, err := h.RiskRepo.GetByTransactionID(r.Context(), id); err == nil && ra != nil {
+			view.RiskScore = ra.RiskScore
+			view.FraudProbability = ra.FraudProbability
+			view.AnomalyScore = ra.AnomalyScore
+		}
+	}
+	if h.PolicyRepo != nil {
+		if pd, err := h.PolicyRepo.GetByTransactionID(r.Context(), id); err == nil && pd != nil {
+			view.Decision = string(pd.Decision)
+			view.DecisionReason = pd.Reason
+		}
+	}
+	if h.ChallengeRepo != nil {
+		if challenge, err := h.ChallengeRepo.GetByTransactionID(r.Context(), id); err == nil && challenge != nil {
+			view.ChallengeStatus = string(challenge.Status)
+		}
+	}
+	writeJSON(w, http.StatusOK, view)
+}
+
+type transactionView struct {
+	models.Transaction
+	RiskScore        int     `json:"risk_score"`
+	FraudProbability float64 `json:"fraud_probability"`
+	AnomalyScore     float64 `json:"anomaly_score"`
+	Decision         string  `json:"decision,omitempty"`
+	DecisionReason   string  `json:"decision_reason,omitempty"`
+	ChallengeStatus  string  `json:"challenge_status,omitempty"`
 }
 
 // List handles GET /api/v1/transactions.

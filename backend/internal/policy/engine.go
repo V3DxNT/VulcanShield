@@ -26,6 +26,13 @@ func (e *Engine) Evaluate(
 	challengeThreshold := 65
 	blockThreshold := 85
 
+	if userThresholds == nil && user != nil {
+		userThresholds = &models.User{
+			ChallengeThreshold: user.ChallengeThreshold,
+			BlockThreshold:     user.BlockThreshold,
+		}
+	}
+
 	if userThresholds != nil {
 		if userThresholds.ChallengeThreshold > 0 {
 			challengeThreshold = userThresholds.ChallengeThreshold
@@ -64,11 +71,15 @@ func (e *Engine) Evaluate(
 
 	now := time.Now().UTC()
 	return &models.PolicyDecision{
-		DecisionID:     fmt.Sprintf("PD-%s", tx.TransactionID),
-		TransactionID:  tx.TransactionID,
-		Decision:       decision,
-		Reason:         reason,
-		RulesTriggered: rules,
-		CreatedAt:      now,
+		DecisionID:         fmt.Sprintf("PD-%s", tx.TransactionID),
+		TransactionID:      tx.TransactionID,
+		Decision:           decision,
+		RiskScore:          riskScore,
+		ChallengeThreshold: challengeThreshold,
+		BlockThreshold:     blockThreshold,
+		PolicyVersion:      "v1.0",
+		Reason:             reason,
+		RulesTriggered:     rules,
+		CreatedAt:          now,
 	}, status
 }

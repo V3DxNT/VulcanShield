@@ -12,6 +12,7 @@ import (
 	"github.com/vulcanshield/backend/internal/challenge"
 	"github.com/vulcanshield/backend/internal/db/repository"
 	"github.com/vulcanshield/backend/internal/features"
+	"github.com/vulcanshield/backend/internal/graph"
 	"github.com/vulcanshield/backend/internal/kafka"
 	"github.com/vulcanshield/backend/internal/mlclient"
 	"github.com/vulcanshield/backend/internal/models"
@@ -44,6 +45,7 @@ type Engine struct {
 	mlClient       *mlclient.Client
 	riskEvaluator  *risk.Evaluator
 	policyEngine   *policy.Engine
+	graphEngine    *graph.Engine
 	otpService     *challenge.Service
 	wsHub          *appws.Hub
 }
@@ -62,6 +64,7 @@ func NewEngine(
 	velocityEngine *appredis.VelocityEngine,
 	mlClient *mlclient.Client,
 	otpService *challenge.Service,
+	graphEngine *graph.Engine,
 	wsHub *appws.Hub,
 ) *Engine {
 	return &Engine{
@@ -79,6 +82,7 @@ func NewEngine(
 		mlClient:       mlClient,
 		riskEvaluator:  risk.NewEvaluator(),
 		policyEngine:   policy.NewEngine(),
+		graphEngine:    graphEngine,
 		otpService:     otpService,
 		wsHub:          wsHub,
 	}
@@ -225,28 +229,26 @@ func (e *Engine) runLoop(ctx context.Context, run *models.ScenarioRun, req model
 			// ── Phase 6: ML Service Prediction ──────────────────────────────
 			var mlResp *mlclient.PredictResponse
 			if e.mlClient != nil {
-				mlResp, _ = e.mlClient.Predict(ctx, predictReq)
+				var err error
+				mlResp, err = e.mlClient.Predict(ctx, predictReq)
+				if err != nil {
+					e.log.Warn("generator: ML predict failed", "error", err, "transaction_id", tx.TransactionID)
+				}
 			}
 
 			// ── Phase 8: Risk Scoring (0–100) ───────────────────────────────
 			riskAssessment := e.riskEvaluator.Evaluate(&tx, mlResp, velocitySignals)
 
 			// ── Phase 9: Policy Engine (ALLOW / CHALLENGE / BLOCK) ─────────
-			policyDecision, updatedStatus := e.policyEngine.Evaluate(&tx, riskAssessment, userProf, nil)
-			tx.Status = updatedStatus
-
-			// ── Phase 10: Step-Up OTP Challenge (if CHALLENGED) ─────────────
-			if policyDecision.Decision == models.DecisionChallenge && e.otpService != nil {
-				otpChallenge, demoOTP, _ := e.otpService.GenerateChallenge(ctx, tx.TransactionID)
-				if e.challengeRepo != nil && otpChallenge != nil {
-					_ = e.challengeRepo.Create(ctx, otpChallenge)
-					e.log.Info("generator: step-up OTP challenge generated",
-						"transaction_id", tx.TransactionID,
-						"challenge_id", otpChallenge.ChallengeID,
-						"demo_otp", demoOTP,
-					)
+			var userThresholds *models.User
+			if userProf != nil {
+				userThresholds = &models.User{
+					ChallengeThreshold: userProf.ChallengeThreshold,
+					BlockThreshold:     userProf.BlockThreshold,
 				}
 			}
+			policyDecision, updatedStatus := e.policyEngine.Evaluate(&tx, riskAssessment, userProf, userThresholds)
+			tx.Status = updatedStatus
 
 			// 1. Persist Transaction to PostgreSQL (authoritative store)
 			if err := e.txRepo.Create(ctx, &tx); err != nil {
@@ -272,6 +274,26 @@ func (e *Engine) runLoop(ctx context.Context, run *models.ScenarioRun, req model
 				}
 			}
 
+			// ── Phase 10: Step-Up OTP (after persist so FK is valid) ────────
+			if policyDecision.Decision == models.DecisionChallenge && e.otpService != nil {
+				otpChallenge, _, err := e.otpService.GenerateChallenge(ctx, tx.TransactionID)
+				if err != nil {
+					e.log.Warn("generator: OTP generate failed", "error", err)
+				} else if e.challengeRepo != nil && otpChallenge != nil {
+					if err := e.challengeRepo.Create(ctx, otpChallenge); err != nil {
+						e.log.Warn("generator: failed to persist OTP challenge", "error", err, "transaction_id", tx.TransactionID)
+					} else {
+						e.settleDemoOTP(ctx, &tx, otpChallenge, generated, policyDecision)
+					}
+				}
+			}
+
+			if e.graphEngine != nil {
+				if err := e.graphEngine.RecordTransactionEdges(ctx, &tx, isEmulator, isVPN); err != nil {
+					e.log.Warn("generator: failed to record graph edges", "error", err, "transaction_id", tx.TransactionID)
+				}
+			}
+
 			// 3. Audit events (TRANSACTION_CREATED & RISK_CALCULATED)
 			auditDetails := map[string]any{
 				"scenario_id":   run.ScenarioID,
@@ -290,10 +312,21 @@ func (e *Engine) runLoop(ctx context.Context, run *models.ScenarioRun, req model
 			// 4. Kafka event publication (transaction.created & risk.evaluated)
 			if e.kafka != nil {
 				txPayload, _ := json.Marshal(tx)
-				_ = e.kafka.Produce(ctx, kafka.TopicTransactionCreated, tx.TransactionID, txPayload)
+				if err := e.kafka.Produce(ctx, kafka.TopicTransactionCreated, tx.TransactionID, txPayload); err != nil {
+					e.log.Warn("generator: kafka produce failed", "topic", kafka.TopicTransactionCreated, "error", err)
+				}
 
 				riskPayload, _ := json.Marshal(riskAssessment)
-				_ = e.kafka.Produce(ctx, kafka.TopicRiskEvaluated, tx.TransactionID, riskPayload)
+				if err := e.kafka.Produce(ctx, kafka.TopicRiskEvaluated, tx.TransactionID, riskPayload); err != nil {
+					e.log.Warn("generator: kafka produce failed", "topic", kafka.TopicRiskEvaluated, "error", err)
+				}
+
+				if policyDecision != nil {
+					decisionPayload, _ := json.Marshal(policyDecision)
+					if err := e.kafka.Produce(ctx, kafka.TopicTransactionDecisioned, tx.TransactionID, decisionPayload); err != nil {
+						e.log.Warn("generator: kafka produce failed", "topic", kafka.TopicTransactionDecisioned, "error", err)
+					}
+				}
 			}
 
 			// 5. WebSocket Real-Time Event Broadcasts (Phase 13)
@@ -319,6 +352,112 @@ func (e *Engine) runLoop(ctx context.Context, run *models.ScenarioRun, req model
 
 	e.log.Info("generator: scenario completed", "scenario_id", run.ScenarioID, "generated", generated)
 	e.finalizeWithCount(run, models.ScenarioCompleted, generated)
+}
+
+// settleDemoOTP auto-resolves half of challenges as verified (ALLOW) and half as failed (BLOCK)
+// so the demo stream shows both step-up outcomes.
+func (e *Engine) settleDemoOTP(
+	ctx context.Context,
+	tx *models.Transaction,
+	otpChallenge *models.OTPChallenge,
+	generated int,
+	prior *models.PolicyDecision,
+) {
+	now := time.Now().UTC()
+	approve := generated%2 == 0
+	riskScore, challengeTh, blockTh := 0, 65, 85
+	if prior != nil {
+		riskScore = prior.RiskScore
+		challengeTh = prior.ChallengeThreshold
+		blockTh = prior.BlockThreshold
+	}
+
+	if approve {
+		otpChallenge.Status = models.ChallengeVerified
+		otpChallenge.Attempts = 1
+		otpChallenge.VerifiedAt = &now
+		_ = e.challengeRepo.Update(ctx, otpChallenge)
+		tx.Status = models.StatusApproved
+		_ = e.txRepo.UpdateStatus(ctx, tx.TransactionID, models.StatusApproved)
+		finalRiskScore := e.recordVerifiedOTPAssessment(ctx, tx.TransactionID, riskScore, challengeTh)
+		if e.policyRepo != nil {
+			_ = e.policyRepo.Create(ctx, &models.PolicyDecision{
+				DecisionID:         "PD-OTP-OK-" + tx.TransactionID,
+				TransactionID:      tx.TransactionID,
+				Decision:           models.DecisionAllow,
+				RiskScore:          finalRiskScore,
+				ChallengeThreshold: challengeTh,
+				BlockThreshold:     blockTh,
+				PolicyVersion:      "v1.0",
+				Reason:             "Step-up OTP verified — customer confirmed; transaction approved",
+				RulesTriggered:     []string{"RULE_OTP_VERIFIED"},
+				CreatedAt:          now,
+			})
+		}
+		e.log.Info("generator: demo OTP verified", "transaction_id", tx.TransactionID)
+		return
+	}
+
+	otpChallenge.Status = models.ChallengeFailed
+	otpChallenge.Attempts = otpChallenge.MaxAttempts
+	_ = e.challengeRepo.Update(ctx, otpChallenge)
+	tx.Status = models.StatusBlocked
+	_ = e.txRepo.UpdateStatus(ctx, tx.TransactionID, models.StatusBlocked)
+	if e.policyRepo != nil {
+		_ = e.policyRepo.Create(ctx, &models.PolicyDecision{
+			DecisionID:         "PD-OTP-FAIL-" + tx.TransactionID,
+			TransactionID:      tx.TransactionID,
+			Decision:           models.DecisionBlock,
+			RiskScore:          riskScore,
+			ChallengeThreshold: challengeTh,
+			BlockThreshold:     blockTh,
+			PolicyVersion:      "v1.0",
+			Reason:             "Step-up OTP failed — max attempts exceeded; transaction blocked",
+			RulesTriggered:     []string{"RULE_OTP_FAILED"},
+			CreatedAt:          now,
+		})
+	}
+	e.log.Info("generator: demo OTP rejected", "transaction_id", tx.TransactionID)
+}
+
+// recordVerifiedOTPAssessment persists the post-verification risk state. The
+// original ML score remains in the audit trail; the lower final score reflects
+// the successful simulated identity check that policy uses for authorization.
+func (e *Engine) recordVerifiedOTPAssessment(ctx context.Context, transactionID string, priorScore, challengeThreshold int) int {
+	finalScore := priorScore - 30
+	maxAllowed := challengeThreshold - 1
+	if finalScore > maxAllowed {
+		finalScore = maxAllowed
+	}
+	if finalScore < 0 {
+		finalScore = 0
+	}
+	if e.riskRepo == nil {
+		return finalScore
+	}
+	prior, err := e.riskRepo.GetByTransactionID(ctx, transactionID)
+	if err != nil || prior == nil {
+		return finalScore
+	}
+	snapshot := make(map[string]any, len(prior.FeatureSnapshot)+3)
+	for key, value := range prior.FeatureSnapshot {
+		snapshot[key] = value
+	}
+	snapshot["challenge_result"] = "OTP_VERIFIED"
+	snapshot["prior_risk_score"] = prior.RiskScore
+	snapshot["risk_adjustment"] = finalScore - prior.RiskScore
+	_ = e.riskRepo.Create(ctx, &models.RiskAssessment{
+		AssessmentID:        "RA-OTP-OK-" + transactionID,
+		TransactionID:       transactionID,
+		FraudProbability:    prior.FraudProbability,
+		AnomalyScore:        prior.AnomalyScore,
+		FraudModelVersion:   prior.FraudModelVersion,
+		AnomalyModelVersion: prior.AnomalyModelVersion,
+		RiskScore:           finalScore,
+		FeatureSnapshot:     snapshot,
+		CreatedAt:           time.Now().UTC(),
+	})
+	return finalScore
 }
 
 // finalize updates the scenario status in memory and PostgreSQL.

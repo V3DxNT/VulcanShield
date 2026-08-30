@@ -37,7 +37,19 @@ async def investigate(req: InvestigationRequest):
             device_profile = await get_device_profile(db_pool, req.device_id)
             ip_profile = await get_ip_profile(db_pool, req.ip_address)
             related_accounts = await get_related_accounts(db_pool, req.user_id)
-            similar_cases = await get_similar_fraud_cases(db_pool, f"Transaction {req.transaction_id}")
+
+            last_status = customer_history.get("last_transaction_status")
+            if customer_history.get("previous_fraud_count", 0) > 0 and last_status in {"BLOCKED", "CANCELLED"}:
+                query = "repeat fraud pattern after previous blocked transaction"
+            elif req.amount > customer_history.get("typical_max_amount", float("inf")) * 2:
+                query = "account takeover abnormal amount"
+            elif related_accounts:
+                query = "device reuse and linked fraud account pattern"
+            elif req.risk_score >= 60:
+                query = "velocity attack automated card testing"
+            else:
+                query = "normal payment customer behavior"
+            similar_cases = await get_similar_fraud_cases(db_pool, query)
         except Exception as e:
             print(f"Tool execution warning: {e}")
 

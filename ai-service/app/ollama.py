@@ -1,10 +1,99 @@
 import os
 import httpx
 import json
-from typing import Dict, Any
+from typing import Dict, Any, Optional, List
 from app.schemas import InvestigationResponse, EvidenceItem, SimilarCase
 
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://ollama:11434")
+
+
+def build_decision_summary(
+    req: Any,
+    customer_history: Optional[Dict[str, Any]] = None,
+    device_profile: Optional[Dict[str, Any]] = None,
+    ip_profile: Optional[Dict[str, Any]] = None,
+    related_accounts: Optional[List[Any]] = None,
+) -> str:
+    """Return a deterministic, policy-first explanation for the transaction outcome."""
+    customer_history = customer_history or {}
+    device_profile = device_profile or {}
+    ip_profile = ip_profile or {}
+    related_accounts = related_accounts or []
+
+    decision = str(getattr(req, "decision", "") or "").upper()
+    status = str(getattr(req, "status", "") or "").upper()
+    risk_score = getattr(req, "risk_score", 0) or 0
+    amount = getattr(req, "amount", 0.0) or 0.0
+    user_id = getattr(req, "user_id", "") or ""
+    amount_threshold = float(customer_history.get("typical_max_amount", 0.0) or 0.0)
+
+    if not decision:
+        if "BLOCK" in status:
+            decision = "BLOCK"
+        elif "CHALLENGE" in status or "CHALLENGED" in status:
+            decision = "CHALLENGE"
+        else:
+            decision = "ALLOW"
+
+    device_risk = device_profile.get("is_emulator") or (device_profile.get("trust_score", 100) < 40)
+    ip_risk = ip_profile.get("is_vpn") or (ip_profile.get("risk_score", 0) >= 60)
+    abnormal_amount = amount_threshold > 0 and amount > amount_threshold * 2.0
+    linked_graph = any(item.get("fraud_linked") for item in related_accounts)
+
+    if decision == "BLOCK":
+        bits = [
+            f"Policy blocked transaction {getattr(req, 'transaction_id', 'UNKNOWN')} for {user_id or 'this customer'}.",
+            f"The recorded risk score was {risk_score}/100, with the decision driven by the authoritative policy engine rather than by the raw model output alone.",
+        ]
+        if device_risk:
+            bits.append(f"The device signal is suspicious: {device_profile.get('device_id', 'device')} appears to be untrusted or emulator-like.")
+        elif ip_risk:
+            bits.append(f"The IP signal is suspicious: {ip_profile.get('ip_address', 'IP')} shows elevated fraud risk.")
+        if abnormal_amount:
+            bits.append(f"The amount of ${amount:.2f} materially exceeds the customer baseline of ${amount_threshold:.2f}.")
+        if linked_graph:
+            bits.append("Network links show related fraud behavior, which adds context to the transaction risk profile.")
+        return " ".join(bits)
+
+    if decision == "CHALLENGE":
+        bits = [
+            f"Policy challenged transaction {getattr(req, 'transaction_id', 'UNKNOWN')} for {user_id or 'this customer'}.",
+            f"The risk score reached {risk_score}/100, so step-up verification is required before approval.",
+        ]
+        if device_risk:
+            bits.append("Device checks are weaker than the customer’s trusted baseline, which is why challenge flow is needed.")
+        elif ip_risk:
+            bits.append("The IP profile is elevated enough to justify identity verification before the payment is allowed.")
+        if abnormal_amount:
+            bits.append(f"The amount is unusually high for the customer, which increases the need for OTP verification.")
+        bits.append("OTP verification is the final gate; a successful response will move the transaction to ALLOW, while a failed or expired code remains blocked.")
+        return " ".join(bits)
+
+    if status == "APPROVED" or "APPROVED" in status or "VERIFIED" in status:
+        bits = [
+            f"Policy approved transaction {getattr(req, 'transaction_id', 'UNKNOWN')} after the customer completed the required verification flow.",
+            f"The transaction stayed within the policy posture despite the earlier elevated risk markers; the successful OTP outcome cleared the challenge state.",
+        ]
+        if device_risk:
+            bits.append("The device checks were reviewed and the customer’s verification step was sufficient to reduce the risk to an acceptable level.")
+        if ip_risk:
+            bits.append("The IP profile remains monitored, but the approved challenge result indicates this was a valid customer action.")
+        bits.append("The final decision is ALLOW because policy re-evaluated the transaction with the verified challenge result.")
+        return " ".join(bits)
+
+    bits = [
+        f"Policy approved transaction {getattr(req, 'transaction_id', 'UNKNOWN')} for {user_id or 'this customer'}.",
+        f"The recorded risk score was {risk_score}/100 and the customer profile remained within the allowed threshold for this transaction.",
+    ]
+    if device_risk:
+        bits.append("The device signal was reviewed but did not exceed the risk threshold for a block.")
+    elif ip_risk:
+        bits.append("The IP signal was elevated but not high enough to trigger a block under the configured policy.")
+    if abnormal_amount:
+        bits.append("The amount stayed above the customer’s typical range, but it was still within the policy’s permitted risk envelope.")
+    bits.append("The final decision remains ALLOW because the deterministic policy engine treated these factors as acceptable for this profile.")
+    return " ".join(bits)
+
 
 async def generate_llm_investigation(
     req: Any,
@@ -45,8 +134,8 @@ async def generate_llm_investigation(
         if fraud_neighbors > 0:
             evidence.append(EvidenceItem(
                 category="FRAUD_GRAPH",
-                fact=f"User is linked to {fraud_neighbors} confirmed fraud entity node(s)",
-                severity="CRITICAL"
+                fact=f"User has {fraud_neighbors} fraud-marked graph relationship(s); this is contextual evidence, not proof of current fraud.",
+                severity="HIGH" if req.decision != "ALLOW" else "LOW"
             ))
 
     if not evidence:
@@ -56,19 +145,27 @@ async def generate_llm_investigation(
             severity="LOW"
         ))
 
-    # Determine Risk Level & Action
-    if req.risk_score >= 80 or any(e.severity == "CRITICAL" for e in evidence):
+    # Policy is authoritative. The investigator explains the final decision and any
+    # step-up verification result rather than substituting a raw ML score.
+    decision = (req.decision or "ALLOW").upper()
+    if not decision:
+        decision = "ALLOW"
+    if decision == "BLOCK":
         risk_level = "CRITICAL"
-        recommended_action = "BLOCK_ACCOUNT"
-        summary = f"High-risk anomaly detected. Transaction of ${req.amount:.2f} generated a risk score of {req.risk_score}/100 with multiple high-severity signals."
-    elif req.risk_score >= 60:
+        recommended_action = "BLOCK"
+    elif decision == "CHALLENGE":
         risk_level = "HIGH"
-        recommended_action = "MANUAL_REVIEW"
-        summary = f"Suspicious transaction pattern. Risk score {req.risk_score}/100 exceeds challenge threshold."
+        recommended_action = "CHALLENGE"
     else:
         risk_level = "LOW"
         recommended_action = "ALLOW"
-        summary = f"Low risk transaction (${req.amount:.2f}). Parameters match baseline customer profile."
+    summary = build_decision_summary(
+        req=req,
+        customer_history=customer_history,
+        device_profile=device_profile,
+        ip_profile=ip_profile,
+        related_accounts=related_accounts,
+    )
 
     cases = [
         SimilarCase(
@@ -80,14 +177,16 @@ async def generate_llm_investigation(
     ]
 
     inv_id = f"INV-{req.transaction_id}"
+    llm_model = "rule-based-evidence-fallback"
     
     # Try calling Ollama LLM endpoint
     try:
         prompt = (
             f"You are a Fraud Analyst AI. Analyze transaction {req.transaction_id} for user {req.user_id}.\n"
             f"Amount: ${req.amount}, Risk Score: {req.risk_score}/100, Fraud Probability: {req.fraud_probability}.\n"
+            f"Authoritative policy decision: {decision}. Transaction status: {req.status}.\n"
             f"Evidence: {[e.fact for e in evidence]}\n"
-            f"Return a 2-sentence formal investigation summary."
+            "Return a 2-sentence formal investigation summary. Explain the supplied policy decision; do not recommend a different action or invent facts."
         )
         async with httpx.AsyncClient(timeout=3.0) as client:
             res = await client.post(
@@ -98,6 +197,7 @@ async def generate_llm_investigation(
                 llm_out = res.json().get("response", "").strip()
                 if llm_out:
                     summary = llm_out
+                    llm_model = "qwen2.5:7b-instruct"
     except Exception:
         pass # Degrade to rule-based summary if Ollama offline
 
@@ -110,5 +210,5 @@ async def generate_llm_investigation(
         similar_cases=cases,
         recommended_action=recommended_action,
         confidence=0.91,
-        llm_model="qwen2.5:7b-instruct",
+        llm_model=llm_model,
     )

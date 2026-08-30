@@ -5,15 +5,14 @@ function formatINR(amount: number) {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amount);
 }
 
-function StatusBadge({ status, onChallenge }: { status: string; onChallenge: () => void }) {
+function StatusBadge({ status }: { status: string }) {
   if (status === 'APPROVED') return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">Approved</span>;
   if (status === 'BLOCKED') return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600 border border-red-200">Blocked</span>;
   if (status === 'CHALLENGED') return (
-    <button onClick={e => { e.stopPropagation(); onChallenge(); }}
-      className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors flex items-center gap-1">
+    <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
       <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-      OTP Required
-    </button>
+      Simulated verification
+    </span>
   );
   return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500 border border-gray-200">Pending</span>;
 }
@@ -33,10 +32,9 @@ interface Transaction {
 
 interface Props {
   onSelectTx: (tx: Transaction) => void;
-  onOpenOTP: (challengeID: string, txID: string) => void;
 }
 
-export default function TransactionStream({ onSelectTx, onOpenOTP }: Props) {
+export default function TransactionStream({ onSelectTx }: Props) {
   const [txs, setTxs] = useState<Transaction[]>([]);
   const [filter, setFilter] = useState('all');
 
@@ -123,7 +121,7 @@ export default function TransactionStream({ onSelectTx, onOpenOTP }: Props) {
                 </td>
                 <td className="px-4 py-3.5 text-xs text-[#6e6e73]">{tx.channel}</td>
                 <td className="px-4 py-3.5">
-                  <StatusBadge status={tx.status} onChallenge={() => onOpenOTP(`CH-${tx.transaction_id}`, tx.transaction_id)} />
+                  <StatusBadge status={tx.status} />
                 </td>
                 <td className="px-4 py-3.5 text-xs text-[#a1a1a6]">
                   {new Date(tx.timestamp).toLocaleTimeString('en-IN')}

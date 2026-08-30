@@ -95,7 +95,7 @@ func main() {
 	engine := generator.NewEngine(
 		log, txRepo, scRepo, entityRepo, riskRepo,
 		policyRepo, challengeRepo, userRepo,
-		kafkaProducer, velocityEngine, mlClient, otpService, wsHub,
+		kafkaProducer, velocityEngine, mlClient, otpService, graphEngine, wsHub,
 	)
 
 	// ── 8. Build Probers for readiness endpoint ──────────────────────────────
@@ -127,7 +127,10 @@ func main() {
 			Engine: engine,
 		},
 		Transactions: &v1.TransactionHandlers{
-			TxRepo: txRepo,
+			TxRepo:        txRepo,
+			RiskRepo:      riskRepo,
+			PolicyRepo:    policyRepo,
+			ChallengeRepo: challengeRepo,
 		},
 		Challenges: &v1.ChallengeHandlers{
 			ChallengeRepo: challengeRepo,
@@ -140,9 +143,10 @@ func main() {
 			Engine:    graphEngine,
 		},
 		Investigations: &v1.InvestigationHandlers{
-			TxRepo:   txRepo,
-			RiskRepo: riskRepo,
-			AIClient: aiclient.NewClient(cfg.AIServiceURL),
+			TxRepo:     txRepo,
+			RiskRepo:   riskRepo,
+			PolicyRepo: policyRepo,
+			AIClient:   aiclient.NewClient(cfg.AIServiceURL),
 		},
 		WSHub: wsHub,
 	}

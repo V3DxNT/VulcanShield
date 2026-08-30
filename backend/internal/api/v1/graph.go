@@ -29,6 +29,16 @@ func (h *GraphHandlers) ListRelationships(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	if userID := r.URL.Query().Get("user_id"); userID != "" {
+		filtered := make([]models.FraudRelationship, 0, len(rels))
+		for _, rel := range rels {
+			if rel.SourceID == userID || rel.TargetID == userID {
+				filtered = append(filtered, rel)
+			}
+		}
+		rels = filtered
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"data":  rels,
 		"total": len(rels),

@@ -56,8 +56,10 @@ type EntityPool struct {
 
 // UserProfile is a minimal projection used by the generator.
 type UserProfile struct {
-	UserID           string
-	TypicalMinAmount float64
-	TypicalMaxAmount float64
-	TrustScore       int
+	UserID             string
+	TypicalMinAmount   float64
+	TypicalMaxAmount   float64
+	TrustScore         int
+	ChallengeThreshold int
+	BlockThreshold     int
 }

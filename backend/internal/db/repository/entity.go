@@ -29,14 +29,19 @@ func (r *pgxEntityRepository) LoadPool(ctx context.Context) (*models.EntityPool,
 
 	// Load user profiles (minimal projection needed for generation)
 	userRows, err := r.pool.Query(ctx,
-		`SELECT user_id, typical_min_amount, typical_max_amount, trust_score FROM users ORDER BY user_id`)
+		`SELECT user_id, typical_min_amount, typical_max_amount, trust_score,
+		        challenge_threshold, block_threshold
+		 FROM users ORDER BY user_id`)
 	if err != nil {
 		return nil, err
 	}
 	defer userRows.Close()
 	for userRows.Next() {
 		var u models.UserProfile
-		if err := userRows.Scan(&u.UserID, &u.TypicalMinAmount, &u.TypicalMaxAmount, &u.TrustScore); err != nil {
+		if err := userRows.Scan(
+			&u.UserID, &u.TypicalMinAmount, &u.TypicalMaxAmount, &u.TrustScore,
+			&u.ChallengeThreshold, &u.BlockThreshold,
+		); err != nil {
 			return nil, err
 		}
 		ep.Users = append(ep.Users, u)

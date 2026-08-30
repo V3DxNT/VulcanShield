@@ -15,14 +15,21 @@ async def get_customer_history(pool: asyncpg.Pool, user_id: str) -> Dict[str, An
         )
         if not user:
             return {}
-        
+
         tx_count = await conn.fetchval(
             "SELECT COUNT(*) FROM transactions WHERE user_id = $1", user_id
         )
         blocks = await conn.fetchval(
             "SELECT COUNT(*) FROM transactions WHERE user_id = $1 AND status = 'BLOCKED'", user_id
         )
-        
+        fraud_tx_count = await conn.fetchval(
+            "SELECT COUNT(*) FROM transactions WHERE user_id = $1 AND status IN ('BLOCKED', 'CANCELLED')", user_id
+        )
+        last_tx = await conn.fetchrow(
+            "SELECT transaction_id, status, amount, created_at FROM transactions WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1",
+            user_id,
+        )
+
         return {
             "user_id": user["user_id"],
             "name": user["name"],
@@ -31,6 +38,11 @@ async def get_customer_history(pool: asyncpg.Pool, user_id: str) -> Dict[str, An
             "typical_max_amount": float(user["typical_max_amount"]),
             "historical_tx_count": tx_count,
             "previous_block_count": blocks,
+            "previous_fraud_count": fraud_tx_count,
+            "last_transaction_id": last_tx["transaction_id"] if last_tx else None,
+            "last_transaction_status": last_tx["status"] if last_tx else None,
+            "last_transaction_amount": float(last_tx["amount"]) if last_tx else 0.0,
+            "last_transaction_timestamp": str(last_tx["created_at"]) if last_tx else None,
         }
 
 async def get_device_profile(pool: asyncpg.Pool, device_id: str) -> Dict[str, Any]:

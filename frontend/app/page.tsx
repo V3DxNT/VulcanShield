@@ -5,12 +5,10 @@ import KPICards from '@/components/KPICards';
 import ScenarioControl from '@/components/ScenarioControl';
 import TransactionStream from '@/components/TransactionStream';
 import GraphVisualizer from '@/components/GraphVisualizer';
-import OTPModal from '@/components/OTPModal';
 import AIInvestigationModal from '@/components/AIInvestigationModal';
 
 export default function Home() {
   const [selectedTx, setSelectedTx] = useState<any>(null);
-  const [otpChallenge, setOtpChallenge] = useState<{ challengeID: string; txID: string } | null>(null);
   const [kpi, setKpi] = useState({ total: 0, approved: 0, challenged: 0, blocked: 0 });
 
   useEffect(() => {
@@ -49,20 +47,11 @@ export default function Home() {
         <div className="grid grid-cols-1 gap-6">
           <TransactionStream
             onSelectTx={tx => setSelectedTx(tx)}
-            onOpenOTP={(challengeID, txID) => setOtpChallenge({ challengeID, txID })}
           />
           <GraphVisualizer />
         </div>
       </main>
 
-      {otpChallenge && (
-        <OTPModal
-          challengeID={otpChallenge.challengeID}
-          transactionID={otpChallenge.txID}
-          onClose={() => setOtpChallenge(null)}
-          onSuccess={() => setOtpChallenge(null)}
-        />
-      )}
       {selectedTx && (
         <AIInvestigationModal
           transactionID={selectedTx.transaction_id}

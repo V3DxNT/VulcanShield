@@ -2,12 +2,42 @@
 import { useState, useEffect } from 'react';
 
 const SCENARIOS = [
-  { value: 'normal', label: 'Normal Traffic' },
-  { value: 'velocity_attack', label: 'Velocity Attack (Carding Burst)' },
-  { value: 'account_takeover', label: 'Account Takeover (ATO)' },
-  { value: 'device_farm', label: 'Device Farm (Shared Device)' },
-  { value: 'ip_abuse', label: 'IP Abuse (Shared VPN)' },
-  { value: 'amount_anomaly', label: 'Amount Anomaly' },
+  {
+    value: 'normal',
+    label: 'Normal Traffic',
+    fn: 'Not an attack. Establishes the conversion baseline.',
+    fp: 'ALLOW on in-profile spend so legitimate checkout is not blocked (false-positive control).',
+  },
+  {
+    value: 'velocity_attack',
+    label: 'Velocity Attack (Carding Burst)',
+    fn: 'Redis 60s windows catch card-testing bursts a single-txn amount rule would miss (false-negative control).',
+    fp: 'Policy uses CHALLENGE before BLOCK so isolated legitimate retries are not auto-declined.',
+  },
+  {
+    value: 'account_takeover',
+    label: 'Account Takeover (ATO)',
+    fn: 'New device/IP + amount spike is scored by ML and challenged — stolen-session payouts are not approved silently.',
+    fp: 'OTP step-up lets the real customer recover the payment instead of a hard decline.',
+  },
+  {
+    value: 'device_farm',
+    label: 'Device Farm (Shared Device)',
+    fn: 'Graph USED edges show many accounts on one device — rings that look like separate customers in isolation.',
+    fp: 'Only fraud-linked / emulator paths elevate; a trusted device is not treated as a farm.',
+  },
+  {
+    value: 'ip_abuse',
+    label: 'IP Abuse (Shared VPN)',
+    fn: 'Shared VPN CONNECTED edges plus IP velocity catch mule clusters behind one exit node.',
+    fp: 'Per-user thresholds (C1003 high vs C1001 low) avoid treating every VPN hop as a block.',
+  },
+  {
+    value: 'amount_anomaly',
+    label: 'Amount Anomaly',
+    fn: 'Isolation Forest + typical_max_amount catch out-of-profile payouts (false-negative vs static MCC rules).',
+    fp: 'CHALLENGE band (between user challenge and block thresholds) preserves GMV on unusual but legitimate tickets.',
+  },
 ];
 
 export default function ScenarioControl() {
@@ -58,7 +88,7 @@ export default function ScenarioControl() {
       <div className="flex items-center justify-between mb-5">
         <div>
           <h2 className="font-semibold text-[#1d1d1f] text-base">Scenario Simulator</h2>
-          <p className="text-xs text-[#6e6e73] mt-0.5">Deterministic seeded transaction engine</p>
+          <p className="text-xs text-[#6e6e73] mt-0.5">Synthetic demo — how risk layers cut chargebacks (missed fraud) without killing conversion (false declines)</p>
         </div>
         {isRunning ? (
           <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-full">
@@ -119,6 +149,19 @@ export default function ScenarioControl() {
           </button>
         )}
       </div>
+
+      {SCENARIOS.filter(s => s.value === scenario).map(s => (
+        <div key={s.value} className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="rounded-xl border border-red-100 bg-red-50/70 p-3.5">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-red-600 mb-1">False negatives (missed fraud / chargebacks)</p>
+            <p className="text-xs text-[#1d1d1f] leading-relaxed">{s.fn}</p>
+          </div>
+          <div className="rounded-xl border border-green-100 bg-green-50/70 p-3.5">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-green-700 mb-1">False positives (blocked good checkout)</p>
+            <p className="text-xs text-[#1d1d1f] leading-relaxed">{s.fp}</p>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

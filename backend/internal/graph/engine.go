@@ -2,6 +2,8 @@ package graph
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"github.com/vulcanshield/backend/internal/db/repository"
 	"github.com/vulcanshield/backend/internal/models"
@@ -39,4 +41,54 @@ func (e *Engine) ExtractFeatures(ctx context.Context, userID, deviceID, ipAddres
 		}
 	}
 	return gf, nil
+}
+
+// RecordTransactionEdges writes the spec graph edges for a transaction:
+// USER —USED→ DEVICE, USER —CONNECTED→ IP, USER —TRANSACTED_WITH→ MERCHANT.
+func (e *Engine) RecordTransactionEdges(ctx context.Context, tx *models.Transaction, isEmulator, isVPN bool) error {
+	if e.graphRepo == nil || tx == nil {
+		return nil
+	}
+	now := time.Now().UTC()
+	edges := []models.FraudRelationship{
+		{
+			RelationshipID:   fmt.Sprintf("REL-USED-%s-%s", tx.UserID, tx.DeviceID),
+			SourceType:       "USER",
+			SourceID:         tx.UserID,
+			TargetType:       "DEVICE",
+			TargetID:         tx.DeviceID,
+			RelationshipType: "USED",
+			Weight:           0.95,
+			FraudLinked:      isEmulator,
+			CreatedAt:        now,
+		},
+		{
+			RelationshipID:   fmt.Sprintf("REL-CONN-%s-%s", tx.UserID, tx.IPAddress),
+			SourceType:       "USER",
+			SourceID:         tx.UserID,
+			TargetType:       "IP",
+			TargetID:         tx.IPAddress,
+			RelationshipType: "CONNECTED",
+			Weight:           0.9,
+			FraudLinked:      isVPN,
+			CreatedAt:        now,
+		},
+		{
+			RelationshipID:   fmt.Sprintf("REL-TX-%s-%s", tx.UserID, tx.MerchantID),
+			SourceType:       "USER",
+			SourceID:         tx.UserID,
+			TargetType:       "MERCHANT",
+			TargetID:         tx.MerchantID,
+			RelationshipType: "TRANSACTED_WITH",
+			Weight:           1.0,
+			FraudLinked:      false,
+			CreatedAt:        now,
+		},
+	}
+	for i := range edges {
+		if err := e.graphRepo.CreateRelationship(ctx, &edges[i]); err != nil {
+			return err
+		}
+	}
+	return nil
 }

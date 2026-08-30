@@ -20,6 +20,7 @@ func NewProducer(brokers []string) (*Producer, error) {
 	client, err := kgo.NewClient(
 		kgo.SeedBrokers(brokers...),
 		kgo.ProducerBatchMaxBytes(1<<20), // 1 MiB
+		kgo.AllowAutoTopicCreation(),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("creating kafka producer: %w", err)

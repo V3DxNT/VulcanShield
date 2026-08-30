@@ -64,10 +64,10 @@ export default function AIInvestigationModal({ transactionID, onClose }: AIInves
   };
 
   const decisionReason = () => {
-    if (!report) return '';
-    if (report.risk_level === 'CRITICAL') return 'This transaction exceeded the hard block threshold. Multiple high-severity fraud signals were simultaneously detected — the system policy engine automatically denied this transaction to protect the account.';
-    if (report.risk_level === 'HIGH') return 'The ML risk score exceeded the challenge threshold, triggering step-up OTP verification. The system requires additional identity confirmation before allowing this transaction to proceed.';
-    return 'All risk signals are within acceptable parameters. Velocity, device trust, IP reputation, and ML models all agree this transaction matches the customer\'s normal behavioral baseline.';
+    if (txDetail?.decision_reason) return txDetail.decision_reason;
+    if (report?.policy_decision === 'BLOCK') return 'The policy engine blocked this transaction using the recorded risk and verification state.';
+    if (report?.policy_decision === 'CHALLENGE') return 'The policy engine requires step-up OTP verification before it can authorize this transaction.';
+    return 'The policy engine approved this transaction using the recorded risk and verification state.';
   };
 
   return (
@@ -86,7 +86,7 @@ export default function AIInvestigationModal({ transactionID, onClose }: AIInves
           <div className="px-6 py-16 flex flex-col items-center gap-3 text-[#6e6e73]">
             <div className="h-8 w-8 rounded-full border-2 border-[#0071e3] border-t-transparent animate-spin"></div>
             <p className="text-sm">Analyzing behavioral signals, device intelligence, and RAG playbooks…</p>
-            <p className="text-xs text-[#a1a1a6]">Powered by qwen2.5:7b-instruct via Ollama</p>
+            <p className="text-xs text-[#a1a1a6]">Uses local Qwen via Ollama when available; otherwise evidence-based fallback</p>
           </div>
         ) : report ? (
           <div className="px-6 py-5 space-y-6">
@@ -94,17 +94,17 @@ export default function AIInvestigationModal({ transactionID, onClose }: AIInves
             {/* Risk Overview Row */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="md:col-span-1 p-4 rounded-xl bg-[#f5f5f7] border border-[#e8e8ed] flex items-center gap-4">
-                <RiskMeter score={txDetail?.risk_score ?? 85} />
+                <RiskMeter score={txDetail?.risk_score ?? report.risk_score ?? 0} />
               </div>
               <div className="md:col-span-2 grid grid-cols-2 gap-3">
                 <div className="p-4 rounded-xl bg-[#f5f5f7] border border-[#e8e8ed]">
                   <p className="text-xs text-[#6e6e73] mb-1">ML Fraud Probability</p>
-                  <p className="text-xl font-semibold text-[#1d1d1f]">{((txDetail?.fraud_probability ?? 0.85) * 100).toFixed(1)}%</p>
+                  <p className="text-xl font-semibold text-[#1d1d1f]">{((txDetail?.fraud_probability ?? report.fraud_probability ?? 0) * 100).toFixed(1)}%</p>
                   <p className="text-xs text-[#a1a1a6] mt-1">XGBoost Classifier</p>
                 </div>
                 <div className="p-4 rounded-xl bg-[#f5f5f7] border border-[#e8e8ed]">
                   <p className="text-xs text-[#6e6e73] mb-1">Anomaly Score</p>
-                  <p className="text-xl font-semibold text-[#1d1d1f]">{((txDetail?.anomaly_score ?? 0.9) * 100).toFixed(1)}%</p>
+                  <p className="text-xl font-semibold text-[#1d1d1f]">{((txDetail?.anomaly_score ?? report.anomaly_score ?? 0) * 100).toFixed(1)}%</p>
                   <p className="text-xs text-[#a1a1a6] mt-1">Isolation Forest</p>
                 </div>
                 <div className="p-4 rounded-xl bg-[#f5f5f7] border border-[#e8e8ed]">
@@ -119,15 +119,25 @@ export default function AIInvestigationModal({ transactionID, onClose }: AIInves
                   <p className="text-xl font-semibold text-[#1d1d1f]">{((report.confidence ?? 0.91) * 100).toFixed(0)}%</p>
                   <p className="text-xs text-[#a1a1a6] mt-1">LLM: {report.llm_model}</p>
                 </div>
+                {txDetail?.challenge_status && (
+                  <div className="col-span-2 p-3 rounded-xl bg-[#f5f5f7] border border-[#e8e8ed]">
+                    <p className="text-xs text-[#6e6e73] mb-1">Step-Up OTP Outcome</p>
+                    <p className={`text-sm font-semibold ${txDetail.challenge_status === 'VERIFIED' ? 'text-green-700' : txDetail.challenge_status === 'FAILED' || txDetail.challenge_status === 'EXPIRED' ? 'text-red-600' : 'text-amber-700'}`}>
+                      {txDetail.challenge_status === 'VERIFIED' ? 'Verified — transaction approved' :
+                       txDetail.challenge_status === 'FAILED' ? 'Rejected — transaction blocked' :
+                       txDetail.challenge_status === 'EXPIRED' ? 'Expired — transaction blocked' : 'Pending verification'}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Decision */}
-            <div className={`p-4 rounded-xl border ${actionColors[report.recommended_action] ?? 'bg-[#f5f5f7] border-[#d2d2d7] text-[#1d1d1f]'}`}>
+            <div className={`p-4 rounded-xl border ${actionColors[report.policy_decision ?? report.recommended_action] ?? 'bg-[#f5f5f7] border-[#d2d2d7] text-[#1d1d1f]'}`}>
               <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-medium uppercase tracking-wide opacity-70">Policy Decision & Recommended Action</p>
-                <span className={`px-3 py-1 rounded-full text-sm font-bold border ${actionColors[report.recommended_action] ?? ''}`}>
-                  {report.recommended_action}
+                <p className="text-xs font-medium uppercase tracking-wide opacity-70">Authoritative Policy Decision</p>
+                <span className={`px-3 py-1 rounded-full text-sm font-bold border ${actionColors[report.policy_decision ?? report.recommended_action] ?? ''}`}>
+                  {report.policy_decision ?? report.recommended_action}
                 </span>
               </div>
               <p className="text-sm leading-relaxed">{decisionReason()}</p>

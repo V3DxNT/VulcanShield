@@ -59,6 +59,18 @@ func (s *Service) GenerateChallenge(ctx context.Context, txID string) (*models.O
 	return challenge, otpCode, nil
 }
 
+// DemoOTP returns the plaintext demo OTP from Redis (hackathon UI only).
+func (s *Service) DemoOTP(ctx context.Context, challengeID string) string {
+	if s.redisClient == nil {
+		return ""
+	}
+	val, err := s.redisClient.Get(ctx, fmt.Sprintf("otp:%s", challengeID)).Result()
+	if err != nil {
+		return ""
+	}
+	return val
+}
+
 // VerifyChecks whether the submitted code matches the SHA-256 hash within the 60s window.
 func (s *Service) Verify(challenge *models.OTPChallenge, inputCode string) bool {
 	if time.Now().UTC().After(challenge.ExpiresAt) {

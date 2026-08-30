@@ -189,6 +189,88 @@ Fraud graph visualization
 AI investigation display
 Scenario controls
 System metrics
+
+╔══════════════════════════════════════════╗
+║          RISKFORGE AI                   ║
+║     PAYMENT RISK INTELLIGENCE            ║
+╠══════════════════════════════════════════╣
+║                                          ║
+║ Transactions       ₹ GMV      Fraud      ║
+║  1.82M             ₹48.2Cr     1.8%      ║
+║                                          ║
+║ ──────────────────────────────────────── ║
+║                                          ║
+║ Fraud prevented          ₹12.4L           ║
+║ False positive rate       1.9%            ║
+║ Detection rate            96.4%            ║
+║ Model drift               LOW             ║
+║                                          ║
+║       RISK TREND                          ║
+║      ╭────╮                              ║
+║  ───╯    ╰────╮                          ║
+║                ╰────                     ║
+╚══════════════════════════════════════════╝
+
+
+             RISK SCORE
+
+                91
+             🔴 HIGH
+
+Decision: BLOCK
+
+────────────────────────────
+
+Risk Factors
+
+Device         ██████████ 94
+Velocity       █████████  87
+Network        █████████  82
+Location       ███████    71
+Merchant       ██         21
+
+1. Device linked to 9 accounts
+2. IP linked to 3 previous fraud cases
+3. Transaction amount 8× normal
+4. New card
+5. 6 attempts within 90 seconds 
+
+Fraud Graph 
+
+
+                  Device
+                    🔴
+                   /│\
+                  / │ \
+                 /  │  \
+              User User User
+               🟢   🔴   🟢
+                    │
+                  Card
+                   🔴
+                    │
+                Merchant
+                   🟡
+
+
+
+SIMULATION
+
+ALLOW
+Expected fraud loss: ₹38,400
+Expected conversion: +2.1%
+
+CHALLENGE
+Expected fraud loss: ₹9,200
+Expected conversion: -3.2%
+
+BLOCK
+Expected fraud loss: ₹0
+Expected conversion: -7.8%
+
+Recommended:
+→ CHALLENGE
+
 5. GO BACKEND
 
 Use:
@@ -682,6 +764,37 @@ Graph:
 graph_risk_score
 fraud_link_count
 suspicious_neighbor_count
+
+              Device D1
+              /   |   \
+             /    |    \
+           U1     U2    U3
+           |      |     |
+          M1     M7    M3
+                  |
+                 IP1
+                /   \
+              U9     U10
+
+
+Risk Graph
+
+                ┌──────────┐
+                │ Device   │
+                │ D_1928   │
+                └────┬─────┘
+                     │
+          ┌──────────┼──────────┐
+          │          │          │
+          ▼          ▼          ▼
+       User A     User B     User C
+          │          │          │
+          ▼          ▼          ▼
+       Card X     Card Y     Card Z
+          │
+          ▼
+      Merchant M
+
 29. RISK SCORE
 
 Normalize all signals to:

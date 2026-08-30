@@ -54,7 +54,9 @@ func (r *pgxRiskRepository) GetByTransactionID(ctx context.Context, txID string)
 		SELECT assessment_id, transaction_id, fraud_probability, anomaly_score,
 		       fraud_model_version, anomaly_model_version, risk_score, feature_snapshot, created_at
 		FROM risk_assessments
-		WHERE transaction_id = $1`
+		WHERE transaction_id = $1
+		ORDER BY created_at DESC
+		LIMIT 1`
 
 	var ra models.RiskAssessment
 	var snapshotBytes []byte

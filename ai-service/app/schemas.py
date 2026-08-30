@@ -10,6 +10,8 @@ class InvestigationRequest(BaseModel):
     risk_score: int = Field(default=85, example=85)
     fraud_probability: float = Field(default=0.85, example=0.85)
     anomaly_score: float = Field(default=0.90, example=0.90)
+    status: str = Field(default="", example="APPROVED")
+    decision: str = Field(default="", example="ALLOW")
 
 class EvidenceItem(BaseModel):
     category: str = Field(..., example="DEVICE_INTELLIGENCE")

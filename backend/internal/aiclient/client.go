@@ -18,6 +18,8 @@ type InvestigationRequest struct {
 	RiskScore        int     `json:"risk_score"`
 	FraudProbability float64 `json:"fraud_probability"`
 	AnomalyScore     float64 `json:"anomaly_score"`
+	Status           string  `json:"status,omitempty"`
+	Decision         string  `json:"decision,omitempty"`
 }
 
 type EvidenceItem struct {
@@ -42,6 +44,11 @@ type InvestigationResponse struct {
 	RecommendedAction string         `json:"recommended_action"`
 	Confidence        float64        `json:"confidence"`
 	LLMModel          string         `json:"llm_model"`
+	RiskScore         int            `json:"risk_score"`
+	FraudProbability  float64        `json:"fraud_probability"`
+	AnomalyScore      float64        `json:"anomaly_score"`
+	PolicyDecision    string         `json:"policy_decision"`
+	TransactionStatus string         `json:"transaction_status"`
 }
 
 type Client struct {
@@ -53,7 +60,7 @@ func NewClient(baseURL string) *Client {
 	return &Client{
 		baseURL: baseURL,
 		httpClient: &http.Client{
-			Timeout: 8 * time.Second,
+			Timeout: 25 * time.Second,
 		},
 	}
 }
@@ -90,14 +97,21 @@ func (c *Client) Investigate(ctx context.Context, req *InvestigationRequest) (*I
 }
 
 func fallbackInvestigation(req *InvestigationRequest) *InvestigationResponse {
+	action := req.Decision
+	if action == "" {
+		action = "ALLOW"
+		if req.RiskScore >= 80 {
+			action = "BLOCK"
+		} else if req.RiskScore >= 60 {
+			action = "CHALLENGE"
+		}
+	}
 	riskLevel := "LOW"
-	action := "ALLOW"
-	if req.RiskScore >= 80 {
+	switch action {
+	case "BLOCK":
 		riskLevel = "CRITICAL"
-		action = "BLOCK_ACCOUNT"
-	} else if req.RiskScore >= 60 {
+	case "CHALLENGE":
 		riskLevel = "HIGH"
-		action = "MANUAL_REVIEW"
 	}
 
 	return &InvestigationResponse{
@@ -109,6 +123,11 @@ func fallbackInvestigation(req *InvestigationRequest) *InvestigationResponse {
 		SimilarCases:      []SimilarCase{},
 		RecommendedAction: action,
 		Confidence:        0.85,
-		LLMModel:          "fallback-analyst",
+		LLMModel:          "rule-based-fallback",
+		RiskScore:         req.RiskScore,
+		FraudProbability:  req.FraudProbability,
+		AnomalyScore:      req.AnomalyScore,
+		PolicyDecision:    req.Decision,
+		TransactionStatus: req.Status,
 	}
 }

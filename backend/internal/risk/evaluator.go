@@ -63,9 +63,12 @@ func (e *Evaluator) Evaluate(
 		}
 	}
 
-	// Risk Score Contract (0 - 100) per PROJECT_SPEC.md §18
-	// ML predicts (50%), Anomaly (30%), Velocity signals (20%)
-	rawScore := (fraudProb * 50.0) + (anomalyScore * 30.0) + (velocityScore * 20.0)
+	// Risk Score Contract (0 - 100) per PROJECT_SPEC.md §18.
+	// A fully saturated 60-second burst is itself decisive behavioral evidence,
+	// so it receives enough weight to trigger policy step-up verification even
+	// when a low-value card-testing attempt has a modest standalone ML score.
+	// ML still provides the majority of non-velocity risk.
+	rawScore := (fraudProb * 40.0) + (anomalyScore * 20.0) + (velocityScore * 40.0)
 	normalizedRiskScore := int(math.Round(math.Max(0.0, math.Min(100.0, rawScore))))
 
 	now := time.Now().UTC()

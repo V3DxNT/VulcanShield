@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import Navbar from '@/components/Navbar';
+import NetworkGraph from '@/components/NetworkGraph';
 
 interface Relationship {
   relationship_id: string;
@@ -89,13 +90,19 @@ export default function NetworkPage() {
         const json = await res.json();
         const data: Relationship[] = json.data ?? [];
         setRelationships(data);
-        setNodes(buildGraph(data));
+        const graphNodes = buildGraph(data);
+        setNodes(graphNodes);
+        setSelectedNode(current => current ?? graphNodes.find(node => node.type === 'USER') ?? null);
       }
     } catch {}
     setLoading(false);
   }, []);
 
-  useEffect(() => { fetchGraph(); }, [fetchGraph]);
+  useEffect(() => {
+    fetchGraph();
+    const t = setInterval(fetchGraph, 3000);
+    return () => clearInterval(t);
+  }, [fetchGraph]);
 
   const fraudRels = relationships.filter(r => r.fraud_linked);
   const userNodes = nodes.filter(n => n.type === 'USER');
@@ -130,12 +137,24 @@ export default function NetworkPage() {
           <StatCard label="Fraud-Linked" value={fraudRels.length} sub="High-risk edge count" color="text-red-600" bg="bg-red-50" />
         </div>
 
+        <div className="bg-white rounded-2xl border border-[#d2d2d7] shadow-sm p-4 mb-6">
+          <NetworkGraph
+            edges={selectedNode?.edges ?? []}
+            height={420}
+            selectedId={selectedNode?.id ?? null}
+            onSelectNode={id => {
+              const n = nodes.find(x => x.id === id);
+              setSelectedNode(n && selectedNode?.id === id ? null : n ?? null);
+            }}
+          />
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Node List */}
           <div className="md:col-span-1 bg-white rounded-2xl border border-[#d2d2d7] shadow-sm">
             <div className="px-5 py-4 border-b border-[#e8e8ed]">
-              <h2 className="font-semibold text-sm text-[#1d1d1f]">Entity Nodes</h2>
-              <p className="text-xs text-[#6e6e73] mt-0.5">{filteredNodes.length} entities</p>
+              <h2 className="font-semibold text-sm text-[#1d1d1f]">Select a User</h2>
+              <p className="text-xs text-[#6e6e73] mt-0.5">The graph shows only that user's direct relationships.</p>
             </div>
             <div className="px-4 py-3 border-b border-[#e8e8ed] space-y-2">
               <div className="flex gap-1 flex-wrap">

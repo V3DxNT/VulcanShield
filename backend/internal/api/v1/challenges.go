@@ -2,6 +2,7 @@ package v1
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -34,7 +35,9 @@ func (h *ChallengeHandlers) GetByID(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "QUERY_FAILED", err.Error())
 		return
 	}
-
+	if h.OTPService != nil {
+		c.DemoOTP = h.OTPService.DemoOTP(r.Context(), c.ChallengeID)
+	}
 	writeJSON(w, http.StatusOK, c)
 }
 
@@ -72,6 +75,7 @@ func (h *ChallengeHandlers) Verify(w http.ResponseWriter, r *http.Request) {
 		c.Status = models.ChallengeExpired
 		_ = h.ChallengeRepo.Update(r.Context(), c)
 		_ = h.TxRepo.UpdateStatus(r.Context(), c.TransactionID, models.StatusBlocked)
+		h.persistFinalDecision(r, c.TransactionID, models.DecisionBlock, "Step-up OTP expired — transaction blocked", "RULE_OTP_EXPIRED", now)
 
 		writeJSON(w, http.StatusOK, models.OTPVerifyResponse{
 			ChallengeID:   c.ChallengeID,
@@ -92,17 +96,8 @@ func (h *ChallengeHandlers) Verify(w http.ResponseWriter, r *http.Request) {
 		_ = h.ChallengeRepo.Update(r.Context(), c)
 		_ = h.TxRepo.UpdateStatus(r.Context(), c.TransactionID, models.StatusApproved)
 
-		// Insert policy decision update ALLOW
-		if h.PolicyRepo != nil {
-			_ = h.PolicyRepo.Create(r.Context(), &models.PolicyDecision{
-				DecisionID:     "PD-VERIFIED-" + c.TransactionID,
-				TransactionID:  c.TransactionID,
-				Decision:       models.DecisionAllow,
-				Reason:         "Step-up OTP successfully verified",
-				RulesTriggered: []string{"RULE_OTP_VERIFIED"},
-				CreatedAt:      now,
-			})
-		}
+		// Persist the deterministic post-challenge policy re-evaluation.
+		h.persistFinalDecision(r, c.TransactionID, models.DecisionAllow, "Step-up OTP successfully verified — transaction approved", "RULE_OTP_VERIFIED", now)
 
 		writeJSON(w, http.StatusOK, models.OTPVerifyResponse{
 			ChallengeID:   c.ChallengeID,
@@ -119,6 +114,7 @@ func (h *ChallengeHandlers) Verify(w http.ResponseWriter, r *http.Request) {
 		c.Status = models.ChallengeFailed
 		_ = h.ChallengeRepo.Update(r.Context(), c)
 		_ = h.TxRepo.UpdateStatus(r.Context(), c.TransactionID, models.StatusBlocked)
+		h.persistFinalDecision(r, c.TransactionID, models.DecisionBlock, "Step-up OTP failed — maximum attempts exceeded; transaction blocked", "RULE_OTP_FAILED", now)
 
 		writeJSON(w, http.StatusOK, models.OTPVerifyResponse{
 			ChallengeID:   c.ChallengeID,
@@ -137,5 +133,30 @@ func (h *ChallengeHandlers) Verify(w http.ResponseWriter, r *http.Request) {
 		Status:        models.ChallengePending,
 		Message:       "Incorrect OTP code",
 		FinalStatus:   models.StatusChallenged,
+	})
+}
+
+// persistFinalDecision records the deterministic post-challenge re-evaluation.
+func (h *ChallengeHandlers) persistFinalDecision(r *http.Request, transactionID string, decision models.PolicyDecisionType, reason, rule string, now time.Time) {
+	if h.PolicyRepo == nil {
+		return
+	}
+	riskScore, challengeTh, blockTh := 0, 65, 85
+	if prev, err := h.PolicyRepo.GetByTransactionID(r.Context(), transactionID); err == nil && prev != nil {
+		riskScore = prev.RiskScore
+		challengeTh = prev.ChallengeThreshold
+		blockTh = prev.BlockThreshold
+	}
+	_ = h.PolicyRepo.Create(r.Context(), &models.PolicyDecision{
+		DecisionID:         fmt.Sprintf("PD-%s-%d", transactionID, now.UnixNano()),
+		TransactionID:      transactionID,
+		Decision:           decision,
+		RiskScore:          riskScore,
+		ChallengeThreshold: challengeTh,
+		BlockThreshold:     blockTh,
+		PolicyVersion:      "v1.0",
+		Reason:             reason,
+		RulesTriggered:     []string{rule},
+		CreatedAt:          now,
 	})
 }
