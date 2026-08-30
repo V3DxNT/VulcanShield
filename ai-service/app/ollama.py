@@ -1,10 +1,16 @@
 import os
+import logging
 import httpx
 import json
 from typing import Dict, Any, Optional, List
 from app.schemas import InvestigationResponse, EvidenceItem, SimilarCase
 
+logger = logging.getLogger(__name__)
+
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://ollama:11434")
+GROQ_API_KEY = (os.getenv("GROQ_API_KEY") or "").strip()
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+DEFAULT_LLM_PROVIDER = (os.getenv("LLM_PROVIDER") or "ollama").lower()
 
 
 def detect_best_ollama_model(models: Optional[List[str]]) -> str:
@@ -40,6 +46,20 @@ async def fetch_available_ollama_models() -> List[str]:
             return [item.get("name", "") for item in models if isinstance(item, dict)]
     except Exception:
         return []
+
+
+def resolve_llm_provider(ollama_available: bool, groq_api_key: Optional[str] = None, preferred_provider: Optional[str] = None) -> Dict[str, str]:
+    """Choose the active LLM provider, preferring Ollama locally and allowing Groq as a fallback when configured."""
+    override = (preferred_provider or DEFAULT_LLM_PROVIDER or "ollama").lower()
+    key = (groq_api_key or GROQ_API_KEY or "").strip()
+
+    if override == "groq" and key:
+        return {"provider": "groq", "model": GROQ_MODEL}
+    if override == "ollama" and ollama_available:
+        return {"provider": "ollama", "model": detect_best_ollama_model([])}
+    if key:
+        return {"provider": "groq", "model": GROQ_MODEL}
+    return {"provider": "rule-based", "model": "rule-based-evidence-fallback"}
 
 
 def build_risk_progression(req: Any, decision: str) -> Dict[str, int]:
@@ -216,7 +236,7 @@ async def generate_llm_investigation(
     if req.amount > typical_max * 2.0:
         evidence.append(EvidenceItem(
             category="BEHAVIORAL_ANOMALY",
-            fact=f"Transaction amount ${req.amount:.2f} significantly exceeds historical max of ${typical_max:.2f}",
+            fact=f"Transaction amount ₹{req.amount:,.2f} significantly exceeds the customer’s historical max of ₹{typical_max:,.2f}",
             severity="HIGH"
         ))
 
@@ -302,28 +322,87 @@ async def generate_llm_investigation(
 
     try:
         available_models = await fetch_available_ollama_models()
-        llm_model = detect_best_ollama_model(available_models)
+        ollama_available = bool(available_models)
+        provider_config = resolve_llm_provider(ollama_available=ollama_available)
+        provider = provider_config["provider"]
+        llm_model = provider_config["model"]
 
-        prompt = (
-            f"You are a Fraud Analyst AI. Analyze transaction {req.transaction_id} for user {req.user_id}.\n"
-            f"Amount: ₹{req.amount:,.2f}, Risk Score: {req.risk_score}/100, Fraud Probability: {req.fraud_probability}.\n"
-            f"Authoritative policy decision: {decision}. Transaction status: {req.status}.\n"
-            f"User prior fraud context: last transaction status={customer_history.get('last_transaction_status')}, previous fraud count={customer_history.get('previous_fraud_count', 0)}.\n"
-            f"Evidence: {[e.fact for e in evidence]}\n"
-            "Return a 5-bullet structured explanation that explains why this transaction succeeded or failed under the policy engine. "
-            "Base your answer only on the supplied evidence and the authoritative decision. Do not invent facts."
-        )
-        async with httpx.AsyncClient(timeout=3.0) as client:
-            res = await client.post(
-                f"{OLLAMA_URL}/api/generate",
-                json={"model": llm_model, "prompt": prompt, "stream": False}
+        if provider == "ollama":
+            selected_model = detect_best_ollama_model(available_models)
+            llm_model = selected_model
+            prompt = (
+                f"You are a Fraud Analyst AI. Analyze transaction {req.transaction_id} for user {req.user_id}.\n"
+                f"Amount: ₹{req.amount:,.2f}, Risk Score: {req.risk_score}/100, Fraud Probability: {req.fraud_probability}.\n"
+                f"Authoritative policy decision: {decision}. Transaction status: {req.status}.\n"
+                f"User prior fraud context: last transaction status={customer_history.get('last_transaction_status')}, previous fraud count={customer_history.get('previous_fraud_count', 0)}.\n"
+                f"Evidence: {[e.fact for e in evidence]}\n"
+                "Return a 5-bullet structured explanation that explains why this transaction succeeded or failed under the policy engine. "
+                "Base your answer only on the supplied evidence and the authoritative decision. Do not invent facts."
             )
-            if res.status_code == 200:
-                llm_out = res.json().get("response", "").strip()
-                if llm_out:
-                    summary = llm_out
-    except Exception:
-        pass  # Degrade to rule-based summary if Ollama is offline or model unavailable
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                res = await client.post(
+                    f"{OLLAMA_URL}/api/generate",
+                    json={"model": selected_model, "prompt": prompt, "stream": False}
+                )
+                payload = res.json() if res.headers.get("content-type", "").startswith("application/json") else {}
+                if res.status_code != 200:
+                    error_text = payload.get("error") if isinstance(payload, dict) else str(payload)
+                    raise RuntimeError(f"Ollama generation failed with status {res.status_code}: {error_text}")
+
+                llm_out = payload.get("response", "").strip()
+                if not llm_out:
+                    raise RuntimeError("Ollama returned an empty response for the investigation prompt.")
+                summary = llm_out
+        elif provider == "groq":
+            groq_api_key = (os.getenv("GROQ_API_KEY") or "").strip()
+            if not groq_api_key:
+                raise RuntimeError("GROQ_API_KEY is not configured, so the Groq fallback cannot be used.")
+
+            messages = [
+                {
+                    "role": "system",
+                    "content": "You are a fraud analyst. Use only the supplied evidence and historical context. Do not invent transaction facts. Explain if the policy decision was ALLOW, CHALLENGE, or BLOCK and reference the user history accurately.",
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        f"Transaction {req.transaction_id} for user {req.user_id}.\n"
+                        f"Amount: ₹{req.amount:,.2f}; Risk score: {req.risk_score}; Fraud probability: {req.fraud_probability}; Policy decision: {decision}; Status: {req.status}.\n"
+                        f"Last transaction status: {customer_history.get('last_transaction_status')}; previous_fraud_count: {customer_history.get('previous_fraud_count', 0)}.\n"
+                        f"Evidence: {[e.fact for e in evidence]}\n"
+                        "Return a 5-bullet structured explanation that is grounded in the provided evidence and the policy decision."
+                    ),
+                },
+            ]
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                res = await client.post(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {groq_api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": GROQ_MODEL,
+                        "messages": messages,
+                        "temperature": 0.3,
+                    },
+                )
+                payload = res.json() if res.headers.get("content-type", "").startswith("application/json") else {}
+                if res.status_code != 200:
+                    error_text = payload.get("error", {}).get("message", str(payload)) if isinstance(payload, dict) else str(payload)
+                    raise RuntimeError(f"Groq generation failed with status {res.status_code}: {error_text}")
+
+                choices = payload.get("choices") or []
+                if not choices:
+                    raise RuntimeError("Groq returned no completion choices for the investigation prompt.")
+                llm_out = ((choices[0].get("message") or {}).get("content") or "").strip()
+                if not llm_out:
+                    raise RuntimeError("Groq returned an empty investigation response.")
+                summary = llm_out
+        else:
+            raise RuntimeError("No LLM provider is configured for investigation generation.")
+    except Exception as exc:
+        logger.exception("AI generation failed; falling back to deterministic summary: %s", exc)
 
     return InvestigationResponse(
         investigation_id=inv_id,

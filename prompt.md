@@ -21,9 +21,18 @@ Make sure that the services work authentic
 
 ___________________________
 
-There are two more problems that the network graph is being cached probably as it is same even on refresh, even on contaiers being restarted
-And one feature that you didnt implement was clicking on the "BLOCKED" or "CHALLENGED" should show all the transactions that were blocked or challenged respectively!
+- There are two more problems that the network graph is being cached probably as it is same even on refresh, even on contaiers being restarted
+
+- And one feature that you didnt implement was clicking on the "BLOCKED" or "CHALLENGED" should show all the transactions that were blocked or challenged respectively!
 One more thing was that the status, is currently
 it is Accepted or OTP Rejected
 there can be more things that if the ml risk score is above (eg 90) then it is fraud, else if it is low you show accepted, if it is mid, you can show from Challenge -> (outcome of the OTP or RAG Context)
 this has to be implemented
+
+- Challenge can come from Initial Score and then Accepted or Rejected can come from final score
+
+- And one thing I can see that the use C1008 has only 4 transactions and 2 rejected, but it shows previous_fraud count as 3, so the LLM is not receiving the Context properly 
+even the first transaction which was passed showed 3 fraud, it show particularily in the time line for that user, right now it is not correct
+And based on this the network graph has to be updated, C1010 has 1 rejected case, but that is not seen in the network graph
+
+# Make sure all are corrected

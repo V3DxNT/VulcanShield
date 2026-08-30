@@ -1,6 +1,6 @@
 import unittest
 
-from app.ollama import build_decision_summary
+from app.ollama import build_decision_summary, resolve_llm_provider
 
 
 class DummyRequest:
@@ -30,6 +30,11 @@ class InvestigationContextTest(unittest.TestCase):
         self.assertIn("last transaction was approved", summary.lower())
         self.assertIn("historical sequence", summary.lower())
         self.assertIn("₹18,500.00", summary)
+
+    def test_resolve_llm_provider_prefers_groq_when_configured_as_fallback(self):
+        provider = resolve_llm_provider(ollama_available=False, groq_api_key="test-key")
+        self.assertEqual(provider["provider"], "groq")
+        self.assertEqual(provider["model"], "llama-3.3-70b-versatile")
 
 
 if __name__ == "__main__":

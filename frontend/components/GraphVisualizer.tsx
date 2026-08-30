@@ -17,7 +17,7 @@ export default function GraphVisualizer() {
         const data: GraphEdge[] = json.data ?? [];
         setRelationships(data);
         const firstUser = targetUser || (data.find(edge => edge.source_type === 'USER')?.source_id ?? data.find(edge => edge.target_type === 'USER')?.target_id ?? '');
-        setUserID(current => current || firstUser);
+        setUserID(firstUser);
       }
     } catch {}
   }, []);

@@ -132,6 +132,10 @@ services:
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-vulcan}:${POSTGRES_PASSWORD:-vulcanpass}@postgres:5432/${POSTGRES_DB:-vulcanshield}
       OLLAMA_URL: http://ollama:11434
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      LLM_FALLBACK_PROVIDER: ${LLM_FALLBACK_PROVIDER:-groq}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-llama-3.3-70b-versatile}
     healthcheck:
       test: ["CMD-SHELL", "python3 -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8001/health\")' || exit 1"]
       interval: 10s

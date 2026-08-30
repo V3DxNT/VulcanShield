@@ -9,6 +9,7 @@ import AIInvestigationModal from '@/components/AIInvestigationModal';
 
 export default function Home() {
   const [selectedTx, setSelectedTx] = useState<any>(null);
+  const [activeFilter, setActiveFilter] = useState<'all' | 'approved' | 'challenged' | 'blocked'>('all');
   const [kpi, setKpi] = useState({ total: 0, approved: 0, challenged: 0, blocked: 0, legitRevenue: 0, otpVerifiedRevenue: 0, otpRejectedRevenue: 0, fraudLossAvoided: 0 });
 
   useEffect(() => {
@@ -18,22 +19,24 @@ export default function Home() {
         if (res.ok) {
           const json = await res.json();
           const txs: any[] = json.data ?? [];
-          const approved = txs.filter(t => t.status === 'APPROVED' && !['PENDING', 'VERIFIED', 'FAILED', 'EXPIRED'].includes(t.challenge_status ?? '')).length;
+
+          const approved = txs.filter(t => t.status === 'APPROVED' || t.challenge_status === 'VERIFIED').length;
+          const challenged = txs.filter(t => t.status === 'CHALLENGED' || t.challenge_status === 'PENDING').length;
+          const blocked = txs.filter(t => t.status === 'BLOCKED' || ['FAILED', 'EXPIRED'].includes(t.challenge_status ?? '')).length;
           const otpVerified = txs.filter(t => t.challenge_status === 'VERIFIED').length;
-          const otpRejected = txs.filter(t => t.challenge_status === 'FAILED' || t.challenge_status === 'EXPIRED').length;
-          const blocked = txs.filter(t => t.status === 'BLOCKED' || t.challenge_status === 'FAILED' || t.challenge_status === 'EXPIRED').length;
-          const challenged = txs.filter(t => t.status === 'CHALLENGED' || ['PENDING', 'VERIFIED', 'FAILED', 'EXPIRED'].includes(t.challenge_status ?? '')).length;
-          const approvedRevenue = txs.filter(t => t.status === 'APPROVED' && !['PENDING', 'VERIFIED', 'FAILED', 'EXPIRED'].includes(t.challenge_status ?? '')).reduce((sum, t) => sum + Number(t.amount || 0), 0);
+          const otpRejected = txs.filter(t => ['FAILED', 'EXPIRED'].includes(t.challenge_status ?? '')).length;
+
+          const approvedRevenue = txs.filter(t => t.status === 'APPROVED' || t.challenge_status === 'VERIFIED').reduce((sum, t) => sum + Number(t.amount || 0), 0);
           const otpVerifiedRevenue = txs.filter(t => t.challenge_status === 'VERIFIED').reduce((sum, t) => sum + Number(t.amount || 0), 0);
-          const otpRejectedRevenue = txs.filter(t => t.challenge_status === 'FAILED' || t.challenge_status === 'EXPIRED').reduce((sum, t) => sum + Number(t.amount || 0), 0);
-          const fraudLossAvoided = txs.filter(t => t.status === 'BLOCKED' || t.challenge_status === 'FAILED' || t.challenge_status === 'EXPIRED').reduce((sum, t) => sum + Number(t.amount || 0), 0);
+          const otpRejectedRevenue = txs.filter(t => ['FAILED', 'EXPIRED'].includes(t.challenge_status ?? '')).reduce((sum, t) => sum + Number(t.amount || 0), 0);
+          const fraudLossAvoided = txs.filter(t => t.status === 'BLOCKED' || ['FAILED', 'EXPIRED'].includes(t.challenge_status ?? '')).reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
           setKpi({
             total: txs.length,
-            approved: approved + otpVerified,
+            approved,
             challenged,
             blocked,
-            legitRevenue: approvedRevenue + otpVerifiedRevenue,
+            legitRevenue: approvedRevenue,
             otpVerifiedRevenue,
             otpRejectedRevenue,
             fraudLossAvoided,
@@ -64,11 +67,14 @@ export default function Home() {
           otpVerifiedRevenue={kpi.otpVerifiedRevenue}
           otpRejectedRevenue={kpi.otpRejectedRevenue}
           fraudLossAvoided={kpi.fraudLossAvoided}
+          onCategoryClick={setActiveFilter}
         />
         <ScenarioControl />
 
         <div className="grid grid-cols-1 gap-6">
           <TransactionStream
+            activeFilter={activeFilter}
+            onFilterChange={setActiveFilter}
             onSelectTx={tx => setSelectedTx(tx)}
           />
           <GraphVisualizer />

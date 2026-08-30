@@ -6,8 +6,8 @@ function formatINR(amount: number) {
 }
 
 function StatusBadge({ status, challengeStatus }: { status: string; challengeStatus?: string }) {
-  if (challengeStatus === 'VERIFIED') return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">OTP accepted</span>;
-  if (challengeStatus === 'FAILED' || challengeStatus === 'EXPIRED') return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600 border border-red-200">OTP rejected</span>;
+  if (challengeStatus === 'VERIFIED') return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">Challenge → Accepted</span>;
+  if (challengeStatus === 'FAILED' || challengeStatus === 'EXPIRED') return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600 border border-red-200">Challenge → Rejected</span>;
   if (status === 'APPROVED') return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">Approved</span>;
   if (status === 'BLOCKED') return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600 border border-red-200">Blocked</span>;
   if (status === 'CHALLENGED' || challengeStatus === 'PENDING') return (
@@ -17,6 +17,15 @@ function StatusBadge({ status, challengeStatus }: { status: string; challengeSta
     </span>
   );
   return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500 border border-gray-200">Pending</span>;
+}
+
+function getClassification(tx: Transaction) {
+  if (tx.challenge_status === 'VERIFIED') return 'approved';
+  if (tx.challenge_status === 'FAILED' || tx.challenge_status === 'EXPIRED') return 'blocked';
+  if (tx.status === 'APPROVED') return 'approved';
+  if (tx.status === 'BLOCKED') return 'blocked';
+  if (tx.status === 'CHALLENGED' || tx.challenge_status === 'PENDING') return 'challenged';
+  return 'all';
 }
 
 interface Transaction {
@@ -34,12 +43,13 @@ interface Transaction {
 }
 
 interface Props {
+  activeFilter?: 'all' | 'approved' | 'challenged' | 'blocked';
+  onFilterChange?: (filter: 'all' | 'approved' | 'challenged' | 'blocked') => void;
   onSelectTx: (tx: Transaction) => void;
 }
 
-export default function TransactionStream({ onSelectTx }: Props) {
+export default function TransactionStream({ activeFilter = 'all', onFilterChange, onSelectTx }: Props) {
   const [txs, setTxs] = useState<Transaction[]>([]);
-  const [filter, setFilter] = useState('all');
   const [userQuery, setUserQuery] = useState('');
 
   const fetchTxList = useCallback(async () => {
@@ -75,15 +85,16 @@ export default function TransactionStream({ onSelectTx }: Props) {
   }, [fetchTxList]);
 
   const filtered = txs.filter(tx => {
-    const isApproved = tx.status === 'APPROVED' || tx.challenge_status === 'VERIFIED';
-    const isChallenged = tx.status === 'CHALLENGED' || ['PENDING', 'VERIFIED', 'FAILED', 'EXPIRED'].includes(tx.challenge_status ?? '');
-    const isBlocked = tx.status === 'BLOCKED' || tx.challenge_status === 'FAILED' || tx.challenge_status === 'EXPIRED';
+    const classification = getClassification(tx);
+    const isApproved = classification === 'approved';
+    const isChallenged = classification === 'challenged';
+    const isBlocked = classification === 'blocked';
 
-    const matchesStatus = filter === 'all'
+    const matchesStatus = activeFilter === 'all'
       ? true
-      : filter === 'approved'
+      : activeFilter === 'approved'
         ? isApproved
-        : filter === 'challenged'
+        : activeFilter === 'challenged'
           ? isChallenged
           : isBlocked;
 
@@ -101,9 +112,9 @@ export default function TransactionStream({ onSelectTx }: Props) {
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex gap-1 bg-[#f5f5f7] p-1 rounded-lg border border-[#e8e8ed]">
             {['all', 'approved', 'challenged', 'blocked'].map(f => (
-              <button key={f} onClick={() => setFilter(f)}
+              <button key={f} onClick={() => onFilterChange?.(f as 'all' | 'approved' | 'challenged' | 'blocked')}
                 className={`px-3 py-1 text-xs font-medium rounded-md transition-colors capitalize ${
-                  filter === f ? 'bg-white text-[#1d1d1f] shadow-sm border border-[#d2d2d7]' : 'text-[#6e6e73] hover:text-[#1d1d1f]'
+                  activeFilter === f ? 'bg-white text-[#1d1d1f] shadow-sm border border-[#d2d2d7]' : 'text-[#6e6e73] hover:text-[#1d1d1f]'
                 }`}>
                 {f}
               </button>

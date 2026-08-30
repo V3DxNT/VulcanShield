@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 )
@@ -92,16 +93,24 @@ func (c *Client) Investigate(ctx context.Context, req *InvestigationRequest) (*I
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
+		log.Printf("AI service unreachable at %s; using fallback: %v", url, err)
 		return fallbackInvestigation(req), nil
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		var body map[string]any
+		if err := json.NewDecoder(resp.Body).Decode(&body); err == nil {
+			log.Printf("AI service returned %d for %s; using fallback. body=%v", resp.StatusCode, url, body)
+		} else {
+			log.Printf("AI service returned %d for %s; using fallback.", resp.StatusCode, url)
+		}
 		return fallbackInvestigation(req), nil
 	}
 
 	var res InvestigationResponse
 	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		log.Printf("AI service returned invalid JSON for %s; using fallback: %v", url, err)
 		return fallbackInvestigation(req), nil
 	}
 	return &res, nil
