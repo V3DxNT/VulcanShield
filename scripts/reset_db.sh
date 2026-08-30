@@ -14,16 +14,13 @@ POSTGRES_DB="${POSTGRES_DB:-vulcanshield}"
 
 echo "Resetting VulcanShield database in container: ${POSTGRES_CONTAINER}..."
 
-# 1. Execute Down Migration (Teardown)
-echo "Executing 000001_init_schema.down.sql..."
-docker exec -i "${POSTGRES_CONTAINER}" psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" < database/migrations/000001_init_schema.down.sql
+# 1. Clear runtime/demo data only, while preserving seeded customer/device/IP data.
+echo "Clearing live transaction, risk, challenge, and investigation state..."
+docker exec -i "${POSTGRES_CONTAINER}" psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c "TRUNCATE TABLE audit_events, investigation_evidence, investigations, otp_challenges, policy_decisions, risk_assessments, transactions, scenarios RESTART IDENTITY CASCADE;"
 
-# 2. Execute Up Migration (Schema Creation)
-echo "Executing 000001_init_schema.up.sql..."
-docker exec -i "${POSTGRES_CONTAINER}" psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" < database/migrations/000001_init_schema.up.sql
+# 2. Clear Redis runtime state as well
+echo "Flushing Redis demo cache..."
+REDIS_CONTAINER="${REDIS_CONTAINER:-vulcanshield-redis}"
+docker exec -i "${REDIS_CONTAINER}" redis-cli FLUSHALL >/dev/null 2>&1 || true
 
-# 3. Load Synthetic Seed Data
-echo "Executing database/seed/seed.sql..."
-docker exec -i "${POSTGRES_CONTAINER}" psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" < database/seed/seed.sql
-
-echo "VulcanShield database successfully reset and seeded!"
+echo "VulcanShield demo state successfully reset. Seeded customer graph and risk baselines remain available."

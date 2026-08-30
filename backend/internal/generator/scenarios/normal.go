@@ -22,10 +22,10 @@ func (n *NormalScenario) Next(idx int, rng *rand.Rand, pool *models.EntityPool, 
 	user := pool.Users[userIdx]
 
 	amount := randAmount(rng, user.TypicalMinAmount, user.TypicalMaxAmount)
-	deviceIdx := rng.Intn(len(pool.DeviceIDs))
-	ipIdx := rng.Intn(len(pool.IPAddresses))
-	merchantIdx := rng.Intn(len(pool.MerchantIDs))
-	now := time.Now().UTC()
+	deviceIdx := (idx + rng.Intn(len(pool.DeviceIDs))) % len(pool.DeviceIDs)
+	ipIdx := (idx + 1 + rng.Intn(len(pool.IPAddresses))) % len(pool.IPAddresses)
+	merchantIdx := (idx + 2 + rng.Intn(len(pool.MerchantIDs))) % len(pool.MerchantIDs)
+	now := progressiveTimestamp(idx, rng)
 
 	return models.Transaction{
 		TransactionID: fmt.Sprintf("TX-%d-%05d", rng.Int63n(9000)+1000, idx),
@@ -40,6 +40,13 @@ func (n *NormalScenario) Next(idx int, rng *rand.Rand, pool *models.EntityPool, 
 		Timestamp:     now,
 		CreatedAt:     now,
 	}
+}
+
+func progressiveTimestamp(idx int, rng *rand.Rand) time.Time {
+	if idx < 0 {
+		idx = 0
+	}
+	return time.Now().UTC().Add(time.Duration(idx)*time.Second + time.Duration(rng.Intn(250))*time.Millisecond)
 }
 
 // randAmount returns a random float64 in [min, max] rounded to 2 decimal places.

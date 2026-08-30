@@ -9,6 +9,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-vulcanshield}
     ports:
       - "${POSTGRES_HOST_PORT:-5432}:5432"
+    volumes:
+      - ./database/docker-init:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vulcan} -d ${POSTGRES_DB:-vulcanshield}"]
       interval: 5s
@@ -74,7 +76,6 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: vulcanshield-backend
-    profiles: [app]
     restart: unless-stopped
     environment:
       BACKEND_PORT: ${BACKEND_PORT:-8080}
@@ -109,7 +110,6 @@ services:
       context: ./ml-service
       dockerfile: Dockerfile
     container_name: vulcanshield-ml
-    profiles: [app]
     restart: unless-stopped
     ports:
       - "8000:8000"
@@ -124,7 +124,6 @@ services:
       context: ./ai-service
       dockerfile: Dockerfile
     container_name: vulcanshield-ai
-    profiles: [app]
     restart: unless-stopped
     ports:
       - "8001:8001"
@@ -142,7 +141,6 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: vulcanshield-frontend
-    profiles: [app]
     restart: unless-stopped
     ports:
       - "3000:3000"

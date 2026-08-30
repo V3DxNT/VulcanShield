@@ -5,13 +5,15 @@ function formatINR(amount: number) {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amount);
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status, challengeStatus }: { status: string; challengeStatus?: string }) {
+  if (challengeStatus === 'VERIFIED') return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">OTP accepted</span>;
+  if (challengeStatus === 'FAILED' || challengeStatus === 'EXPIRED') return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600 border border-red-200">OTP rejected</span>;
   if (status === 'APPROVED') return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">Approved</span>;
   if (status === 'BLOCKED') return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600 border border-red-200">Blocked</span>;
-  if (status === 'CHALLENGED') return (
+  if (status === 'CHALLENGED' || challengeStatus === 'PENDING') return (
     <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
       <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-      Simulated verification
+      Challenge pending
     </span>
   );
   return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500 border border-gray-200">Pending</span>;
@@ -27,6 +29,7 @@ interface Transaction {
   currency: string;
   channel: string;
   status: string;
+  challenge_status?: string;
   timestamp: string;
 }
 
@@ -134,7 +137,7 @@ export default function TransactionStream({ onSelectTx }: Props) {
                 </td>
                 <td className="px-4 py-3.5 text-xs text-[#6e6e73]">{tx.channel}</td>
                 <td className="px-4 py-3.5">
-                  <StatusBadge status={tx.status} />
+                  <StatusBadge status={tx.status} challengeStatus={tx.challenge_status} />
                 </td>
                 <td className="px-4 py-3.5 text-xs text-[#a1a1a6]">
                   {new Date(tx.timestamp).toLocaleTimeString('en-IN')}

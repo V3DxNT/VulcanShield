@@ -15,7 +15,7 @@ export default function Navbar() {
         <div className="flex items-center gap-8">
           <div className="flex items-center gap-2.5">
             <div className="h-8 w-8 rounded-xl bg-[#0071e3] flex items-center justify-center text-white font-bold text-sm shadow-sm">
-              VS
+              
             </div>
             <span className="font-semibold text-[#1d1d1f] text-sm tracking-tight">VulcanShield</span>
           </div>

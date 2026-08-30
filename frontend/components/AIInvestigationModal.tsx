@@ -39,6 +39,7 @@ export default function AIInvestigationModal({ transactionID, onClose }: AIInves
   const [report, setReport] = useState<any>(null);
   const [txDetail, setTxDetail] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [expandedModel, setExpandedModel] = useState<'xgboost' | 'isolation' | null>('xgboost');
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -171,23 +172,33 @@ export default function AIInvestigationModal({ transactionID, onClose }: AIInves
                 </button>
               </div>
               <p className="text-sm text-[#1d1d1f] leading-relaxed whitespace-pre-line">{report.summary}</p>
+              <div className="mt-3 pt-3 border-t border-blue-200">
+                <p className="text-[10px] uppercase tracking-wide text-[#6e6e73]">AI Confidence</p>
+                <p className="text-xs text-[#1d1d1f] mt-1 leading-relaxed">
+                  AI confidence means how strongly the retrieved evidence and user history support the current policy outcome. It is not a payment authorization score.
+                </p>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-4 rounded-xl border border-[#d2d2d7] bg-[#f5f5f7]">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-semibold text-[#1d1d1f]">XGBoost</h3>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-medium uppercase bg-blue-100 text-blue-700">Classifier</span>
+              {[
+                { key: 'xgboost', title: 'XGBoost', badge: 'Classifier', badgeClass: 'bg-blue-100 text-blue-700', reason: modelReasons.xgboost },
+                { key: 'isolation', title: 'Isolation Forest', badge: 'Anomaly', badgeClass: 'bg-violet-100 text-violet-700', reason: modelReasons.isolation },
+              ].map(item => (
+                <div key={item.key} className="p-4 rounded-xl border border-[#d2d2d7] bg-[#f5f5f7]">
+                  <button
+                    type="button"
+                    onClick={() => setExpandedModel(expandedModel === item.key ? null : item.key as any)}
+                    className="w-full flex items-center justify-between mb-2 text-left"
+                  >
+                    <h3 className="text-sm font-semibold text-[#1d1d1f]">{item.title}</h3>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium uppercase ${item.badgeClass}`}>{item.badge}</span>
+                  </button>
+                  {expandedModel === item.key && (
+                    <p className="text-sm text-[#1d1d1f] leading-relaxed">{item.reason}</p>
+                  )}
                 </div>
-                <p className="text-sm text-[#1d1d1f] leading-relaxed">{modelReasons.xgboost}</p>
-              </div>
-              <div className="p-4 rounded-xl border border-[#d2d2d7] bg-[#f5f5f7]">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-semibold text-[#1d1d1f]">Isolation Forest</h3>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-medium uppercase bg-violet-100 text-violet-700">Anomaly</span>
-                </div>
-                <p className="text-sm text-[#1d1d1f] leading-relaxed">{modelReasons.isolation}</p>
-              </div>
+              ))}
             </div>
 
             {/* Evidence Signals */}

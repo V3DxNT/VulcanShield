@@ -61,6 +61,18 @@ func main() {
 		log.Info("redis connected", "service", "backend", "addr", cfg.RedisAddr())
 	}
 
+	if err := appdb.ResetRuntimeState(ctx, pool, func(ctx context.Context) error {
+		if redisClient == nil {
+			return nil
+		}
+		return redisClient.FlushAll(ctx).Err()
+	}); err != nil {
+		log.Warn("demo runtime state reset failed; continuing with existing state",
+			"error", err, "service", "backend")
+	} else {
+		log.Info("demo runtime state reset complete", "service", "backend")
+	}
+
 	// ── 5. Kafka Producer (non-fatal — graceful degradation) ──────────────────
 	kafkaProducer, err := kafka.NewProducer(cfg.KafkaBrokers)
 	if err != nil {

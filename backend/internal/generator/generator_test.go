@@ -2,6 +2,7 @@ package generator
 
 import (
 	"testing"
+	"time"
 
 	"github.com/vulcanshield/backend/internal/generator/scenarios"
 	"github.com/vulcanshield/backend/internal/models"
@@ -73,6 +74,19 @@ func TestAmountAnomaly(t *testing.T) {
 		if tx.Amount < 250.0*5 {
 			t.Errorf("amount anomaly idx %d: amount %f too low (expected >1250)", i, tx.Amount)
 		}
+	}
+}
+
+func TestGeneratedTimestampsProgressInRealTime(t *testing.T) {
+	gen := NewBaseGenerator(42, testPool, &scenarios.NormalScenario{})
+	prev := gen.Next(0, -1).Timestamp
+
+	for i := 1; i < 8; i++ {
+		tx := gen.Next(i, -1)
+		if tx.Timestamp.Sub(prev) < 250*time.Millisecond {
+			t.Fatalf("timestamp idx %d did not advance meaningfully: %s -> %s", i, prev.Format(time.RFC3339Nano), tx.Timestamp.Format(time.RFC3339Nano))
+		}
+		prev = tx.Timestamp
 	}
 }
 
