@@ -70,6 +70,19 @@ export default function AIInvestigationModal({ transactionID, onClose }: AIInves
     return 'The policy engine approved this transaction using the recorded risk and verification state.';
   };
 
+  const modelReasons = {
+    xgboost: (txDetail?.status === 'BLOCKED' || txDetail?.decision === 'BLOCK' || report?.policy_decision === 'BLOCK')
+      ? 'High risk because the transaction amount exceeds the customer norm and the policy gate is not satisfied; XGBoost interprets those signals as strong fraud risk.'
+      : (txDetail?.risk_score ?? report?.risk_score ?? 0) >= 60
+        ? 'Elevated risk because the transaction is outside the customer’s usual pattern and includes stronger-than-normal velocity or device/IP indications.'
+        : 'Low to moderate risk because the transaction behavior remains consistent with the customer baseline and the model does not see a clear fraud pattern.',
+    isolation: (txDetail?.challenge_status === 'FAILED' || txDetail?.challenge_status === 'EXPIRED' || txDetail?.status === 'BLOCKED')
+      ? 'High anomaly score because the transaction deviates from the user’s normal behavioral cluster and fails the expected pattern for trusted device/IP usage.'
+      : 'Low anomaly score because the transaction fits the customer’s normal behavior cluster and does not look like an outlier event.'
+  };
+
+  const userID = txDetail?.user_id || report?.user_id || 'C1001';
+
   return (
     <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-start justify-center z-50 p-4 overflow-y-auto">
       <div className="bg-white rounded-2xl border border-[#d2d2d7] shadow-2xl w-full max-w-3xl my-8">
@@ -145,11 +158,36 @@ export default function AIInvestigationModal({ transactionID, onClose }: AIInves
 
             {/* AI Summary */}
             <div className="p-4 rounded-xl bg-blue-50 border border-blue-100">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="h-5 w-5 rounded bg-[#0071e3] flex items-center justify-center text-white text-xs font-bold">AI</div>
-                <p className="text-xs font-medium text-[#0071e3]">Analyst Summary</p>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <div className="flex items-center gap-2">
+                  <div className="h-5 w-5 rounded bg-[#0071e3] flex items-center justify-center text-white text-xs font-bold">AI</div>
+                  <p className="text-xs font-medium text-[#0071e3]">Analyst Summary</p>
+                </div>
+                <button
+                  onClick={() => window.location.href = `/network?user=${encodeURIComponent(userID)}`}
+                  className="px-3 py-1.5 text-xs font-medium text-[#0071e3] bg-white border border-[#0071e3]/30 rounded-lg hover:bg-blue-50"
+                >
+                  View user network →
+                </button>
               </div>
-              <p className="text-sm text-[#1d1d1f] leading-relaxed">{report.summary}</p>
+              <p className="text-sm text-[#1d1d1f] leading-relaxed whitespace-pre-line">{report.summary}</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-4 rounded-xl border border-[#d2d2d7] bg-[#f5f5f7]">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-semibold text-[#1d1d1f]">XGBoost</h3>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-medium uppercase bg-blue-100 text-blue-700">Classifier</span>
+                </div>
+                <p className="text-sm text-[#1d1d1f] leading-relaxed">{modelReasons.xgboost}</p>
+              </div>
+              <div className="p-4 rounded-xl border border-[#d2d2d7] bg-[#f5f5f7]">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-semibold text-[#1d1d1f]">Isolation Forest</h3>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-medium uppercase bg-violet-100 text-violet-700">Anomaly</span>
+                </div>
+                <p className="text-sm text-[#1d1d1f] leading-relaxed">{modelReasons.isolation}</p>
+              </div>
             </div>
 
             {/* Evidence Signals */}

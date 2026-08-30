@@ -37,6 +37,7 @@ interface Props {
 export default function TransactionStream({ onSelectTx }: Props) {
   const [txs, setTxs] = useState<Transaction[]>([]);
   const [filter, setFilter] = useState('all');
+  const [userQuery, setUserQuery] = useState('');
 
   const fetchTxList = useCallback(async () => {
     try {
@@ -70,7 +71,11 @@ export default function TransactionStream({ onSelectTx }: Props) {
     return () => { clearInterval(interval); ws?.close(); };
   }, [fetchTxList]);
 
-  const filtered = filter === 'all' ? txs : txs.filter(t => t.status === filter.toUpperCase());
+  const filtered = txs.filter(tx => {
+    const matchesStatus = filter === 'all' ? true : tx.status === filter.toUpperCase();
+    const matchesUser = userQuery.trim() === '' || tx.user_id.toLowerCase().includes(userQuery.toLowerCase());
+    return matchesStatus && matchesUser;
+  });
 
   return (
     <div className="bg-white rounded-2xl border border-[#d2d2d7] shadow-sm overflow-hidden">
@@ -79,15 +84,23 @@ export default function TransactionStream({ onSelectTx }: Props) {
           <h2 className="font-semibold text-[#1d1d1f] text-base">Live Transaction Stream</h2>
           <p className="text-xs text-[#6e6e73] mt-0.5">{txs.length} transactions • auto-refreshing</p>
         </div>
-        <div className="flex gap-1 bg-[#f5f5f7] p-1 rounded-lg border border-[#e8e8ed]">
-          {['all', 'approved', 'challenged', 'blocked'].map(f => (
-            <button key={f} onClick={() => setFilter(f)}
-              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors capitalize ${
-                filter === f ? 'bg-white text-[#1d1d1f] shadow-sm border border-[#d2d2d7]' : 'text-[#6e6e73] hover:text-[#1d1d1f]'
-              }`}>
-              {f}
-            </button>
-          ))}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex gap-1 bg-[#f5f5f7] p-1 rounded-lg border border-[#e8e8ed]">
+            {['all', 'approved', 'challenged', 'blocked'].map(f => (
+              <button key={f} onClick={() => setFilter(f)}
+                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors capitalize ${
+                  filter === f ? 'bg-white text-[#1d1d1f] shadow-sm border border-[#d2d2d7]' : 'text-[#6e6e73] hover:text-[#1d1d1f]'
+                }`}>
+                {f}
+              </button>
+            ))}
+          </div>
+          <input
+            value={userQuery}
+            onChange={e => setUserQuery(e.target.value)}
+            placeholder="Search customer ID"
+            className="w-44 rounded-lg border border-[#d2d2d7] bg-white px-2.5 py-1.5 text-xs text-[#1d1d1f] placeholder:text-[#a1a1a6]"
+          />
         </div>
       </div>
 

@@ -5,37 +5,65 @@ interface KPIProps {
   approvedTx: number;
   challengedTx: number;
   blockedTx: number;
+  legitRevenue?: number;
+  otpVerifiedRevenue?: number;
+  otpRejectedRevenue?: number;
+  fraudLossAvoided?: number;
 }
 
 export function formatINR(amount: number) {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amount);
 }
 
-export default function KPICards({ totalTx, approvedTx, challengedTx, blockedTx }: KPIProps) {
+export default function KPICards({ totalTx, approvedTx, challengedTx, blockedTx, legitRevenue = 0, otpVerifiedRevenue = 0, otpRejectedRevenue = 0, fraudLossAvoided = 0 }: KPIProps) {
   const cards = [
     {
       label: 'Total Transactions',
       value: totalTx,
-      sub: 'Real-time volume',
+      sub: 'Live volume',
       color: 'text-[#1d1d1f]',
       bg: 'bg-white',
       border: 'border-[#d2d2d7]',
     },
     {
-      label: 'Approved',
-      value: approvedTx,
-      sub: 'Risk below threshold',
+      label: 'Valid Revenue',
+      value: formatINR(legitRevenue),
+      sub: 'Approved + OTP verified',
       color: 'text-green-600',
       bg: 'bg-green-50',
       border: 'border-green-100',
     },
     {
-      label: 'Challenged (OTP)',
-      value: challengedTx,
-      sub: 'Step-up verification',
+      label: 'OTP Accepted',
+      value: otpVerifiedRevenue,
+      sub: 'Challenge resolved successfully',
       color: 'text-amber-600',
       bg: 'bg-amber-50',
       border: 'border-amber-100',
+    },
+    {
+      label: 'Fraud Rejected',
+      value: otpRejectedRevenue,
+      sub: 'Fraud blocked by policy',
+      color: 'text-red-500',
+      bg: 'bg-red-50',
+      border: 'border-red-100',
+    },
+    {
+      label: 'Approved',
+      value: approvedTx,
+      sub: 'Risk within policy',
+      color: 'text-emerald-600',
+      bg: 'bg-emerald-50',
+      border: 'border-emerald-100',
+    },
+    {
+      label: 'Challenged',
+      value: challengedTx,
+      sub: 'Step-up verification',
+      color: 'text-orange-600',
+      bg: 'bg-orange-50',
+      border: 'border-orange-100',
     },
     {
       label: 'Blocked',
@@ -45,14 +73,22 @@ export default function KPICards({ totalTx, approvedTx, challengedTx, blockedTx 
       bg: 'bg-red-50',
       border: 'border-red-100',
     },
+    {
+      label: 'Fraud Loss Avoided',
+      value: formatINR(fraudLossAvoided),
+      sub: 'Value protected by policy',
+      color: 'text-violet-600',
+      bg: 'bg-violet-50',
+      border: 'border-violet-100',
+    },
   ];
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
       {cards.map((c, i) => (
         <div key={i} className={`p-5 rounded-2xl border ${c.bg} ${c.border} shadow-sm`}>
           <p className="text-xs font-medium text-[#6e6e73] uppercase tracking-wide mb-1">{c.label}</p>
-          <p className={`text-3xl font-semibold ${c.color} tabular-nums`}>{c.value.toLocaleString('en-IN')}</p>
+          <p className={`text-2xl font-semibold ${c.color} tabular-nums`}>{typeof c.value === 'number' ? c.value.toLocaleString('en-IN') : c.value}</p>
           <p className="text-xs text-[#a1a1a6] mt-1">{c.sub}</p>
         </div>
       ))}

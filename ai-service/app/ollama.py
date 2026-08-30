@@ -42,57 +42,64 @@ def build_decision_summary(
 
     if decision == "BLOCK":
         bits = [
-            f"Policy blocked transaction {getattr(req, 'transaction_id', 'UNKNOWN')} for {user_id or 'this customer'}.",
-            f"The recorded risk score was {risk_score}/100, with the decision driven by the authoritative policy engine rather than by the raw model output alone.",
+            f"• Policy blocked transaction {getattr(req, 'transaction_id', 'UNKNOWN')} for {user_id or 'this customer'}.",
+            f"• The recorded risk score was {risk_score}/100. The final authorization decision was made by the policy engine, not by the raw ML score alone.",
         ]
         if device_risk:
-            bits.append(f"The device signal is suspicious: {device_profile.get('device_id', 'device')} appears to be untrusted or emulator-like.")
+            bits.append(f"• The device signal is suspicious: {device_profile.get('device_id', 'device')} looks untrusted or emulator-like.")
         elif ip_risk:
-            bits.append(f"The IP signal is suspicious: {ip_profile.get('ip_address', 'IP')} shows elevated fraud risk.")
+            bits.append(f"• The IP signal is suspicious: {ip_profile.get('ip_address', 'IP')} shows elevated fraud risk.")
         if abnormal_amount:
-            bits.append(f"The amount of ${amount:.2f} materially exceeds the customer baseline of ${amount_threshold:.2f}.")
+            bits.append(f"• The amount of ${amount:.2f} materially exceeds the customer baseline of ${amount_threshold:.2f}.")
         if linked_graph:
-            bits.append("Network links show related fraud behavior, which adds context to the transaction risk profile.")
-        return " ".join(bits)
+            bits.append("• Network links show related fraud behavior, which adds context to the current investigation.")
+        if customer_history.get("previous_fraud_count", 0):
+            bits.append(f"• This customer has {customer_history.get('previous_fraud_count')} prior fraud-related transaction(s), which strengthens the risk context.")
+        bits.append("• Final outcome: BLOCK because the transaction exceeded the configured risk boundary and the evidence stack did not support approval.")
+        return "\n".join(bits)
 
     if decision == "CHALLENGE":
         bits = [
-            f"Policy challenged transaction {getattr(req, 'transaction_id', 'UNKNOWN')} for {user_id or 'this customer'}.",
-            f"The risk score reached {risk_score}/100, so step-up verification is required before approval.",
+            f"• Policy challenged transaction {getattr(req, 'transaction_id', 'UNKNOWN')} for {user_id or 'this customer'}.",
+            f"• The risk score reached {risk_score}/100, so the policy engine required step-up verification before approval.",
         ]
         if device_risk:
-            bits.append("Device checks are weaker than the customer’s trusted baseline, which is why challenge flow is needed.")
+            bits.append("• Device checks are weaker than the customer’s trusted baseline, which is why the challenge flow was triggered.")
         elif ip_risk:
-            bits.append("The IP profile is elevated enough to justify identity verification before the payment is allowed.")
+            bits.append("• The IP profile is elevated enough to justify identity verification before the payment is allowed.")
         if abnormal_amount:
-            bits.append(f"The amount is unusually high for the customer, which increases the need for OTP verification.")
-        bits.append("OTP verification is the final gate; a successful response will move the transaction to ALLOW, while a failed or expired code remains blocked.")
-        return " ".join(bits)
+            bits.append(f"• The amount is unusually high for the customer, which increases the risk of a takeover or mule pattern.")
+        if customer_history.get("last_transaction_status") in {"BLOCKED", "CANCELLED"}:
+            bits.append("• The customer’s last transaction was already marked as risky or blocked, which is relevant user-specific context for this challenge decision.")
+        bits.append("• Final outcome: CHALLENGE. If the OTP is verified, the decision can move to ALLOW; if it fails or expires, it remains blocked.")
+        return "\n".join(bits)
 
     if status == "APPROVED" or "APPROVED" in status or "VERIFIED" in status:
         bits = [
-            f"Policy approved transaction {getattr(req, 'transaction_id', 'UNKNOWN')} after the customer completed the required verification flow.",
-            f"The transaction stayed within the policy posture despite the earlier elevated risk markers; the successful OTP outcome cleared the challenge state.",
+            f"• Policy approved transaction {getattr(req, 'transaction_id', 'UNKNOWN')} after the customer completed the required verification flow.",
+            f"• The transaction stayed within the policy posture despite earlier risk markers; the successful OTP outcome cleared the challenge state.",
         ]
         if device_risk:
-            bits.append("The device checks were reviewed and the customer’s verification step was sufficient to reduce the risk to an acceptable level.")
+            bits.append("• The device checks were reviewed, and the successful verification step was enough to reduce the risk to an acceptable level.")
         if ip_risk:
-            bits.append("The IP profile remains monitored, but the approved challenge result indicates this was a valid customer action.")
-        bits.append("The final decision is ALLOW because policy re-evaluated the transaction with the verified challenge result.")
-        return " ".join(bits)
+            bits.append("• The IP profile remains monitored, but the approved challenge outcome indicates the customer action was valid.")
+        bits.append("• Final outcome: ALLOW because policy re-evaluated the transaction with the verified challenge result and accepted the step-up proof.")
+        return "\n".join(bits)
 
     bits = [
-        f"Policy approved transaction {getattr(req, 'transaction_id', 'UNKNOWN')} for {user_id or 'this customer'}.",
-        f"The recorded risk score was {risk_score}/100 and the customer profile remained within the allowed threshold for this transaction.",
+        f"• Policy approved transaction {getattr(req, 'transaction_id', 'UNKNOWN')} for {user_id or 'this customer'}.",
+        f"• The recorded risk score was {risk_score}/100, and the customer profile remained within the configured risk envelope for this transaction.",
     ]
     if device_risk:
-        bits.append("The device signal was reviewed but did not exceed the risk threshold for a block.")
+        bits.append("• The device signal was reviewed but did not exceed the threshold that would require a block.")
     elif ip_risk:
-        bits.append("The IP signal was elevated but not high enough to trigger a block under the configured policy.")
+        bits.append("• The IP signal was elevated but still below the policy threshold for a block.")
     if abnormal_amount:
-        bits.append("The amount stayed above the customer’s typical range, but it was still within the policy’s permitted risk envelope.")
-    bits.append("The final decision remains ALLOW because the deterministic policy engine treated these factors as acceptable for this profile.")
-    return " ".join(bits)
+        bits.append("• The amount stayed above the customer’s typical range, but it was still within the permitted policy posture.")
+    if customer_history.get("previous_fraud_count", 0):
+        bits.append(f"• Prior history for this customer includes {customer_history.get('previous_fraud_count')} prior risky event(s), but the current profile still qualified for approval under policy.")
+    bits.append("• Final outcome: ALLOW because the deterministic policy engine treated these factors as acceptable for this customer profile.")
+    return "\n".join(bits)
 
 
 async def generate_llm_investigation(

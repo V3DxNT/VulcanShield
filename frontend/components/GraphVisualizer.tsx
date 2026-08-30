@@ -9,12 +9,14 @@ export default function GraphVisualizer() {
 
   const fetchGraph = useCallback(async () => {
     try {
-      const res = await fetch('/api/v1/graph/relationships?limit=200');
+      const params = new URLSearchParams(window.location.search);
+      const targetUser = params.get('user') || '';
+      const res = await fetch(`/api/v1/graph/relationships?limit=200${targetUser ? `&user_id=${encodeURIComponent(targetUser)}` : ''}`);
       if (res.ok) {
         const json = await res.json();
         const data: GraphEdge[] = json.data ?? [];
         setRelationships(data);
-        const firstUser = data.find(edge => edge.source_type === 'USER')?.source_id ?? data.find(edge => edge.target_type === 'USER')?.target_id ?? '';
+        const firstUser = targetUser || (data.find(edge => edge.source_type === 'USER')?.source_id ?? data.find(edge => edge.target_type === 'USER')?.target_id ?? '');
         setUserID(current => current || firstUser);
       }
     } catch {}
