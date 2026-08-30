@@ -21,8 +21,8 @@ func (v *VelocityAttackScenario) Next(idx int, rng *rand.Rand, pool *models.Enti
 	}
 	user := pool.Users[userIdx]
 
-	deviceID := pool.DeviceIDs[0]
-	ipAddr := pool.IPAddresses[0]
+	deviceID := pool.DeviceIDs[userIdx%len(pool.DeviceIDs)]
+	ipAddr := pool.IPAddresses[userIdx%len(pool.IPAddresses)]
 	merchantID := pool.MerchantIDs[(idx+1)%len(pool.MerchantIDs)]
 
 	amount := randAmount(rng, user.TypicalMinAmount, user.TypicalMaxAmount*0.5)

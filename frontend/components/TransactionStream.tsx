@@ -54,7 +54,7 @@ export default function TransactionStream({ activeFilter = 'all', onFilterChange
 
   const fetchTxList = useCallback(async () => {
     try {
-      const res = await fetch('/api/v1/transactions?limit=50');
+      const res = await fetch('/api/v1/transactions?limit=50', { cache: 'no-store' });
       if (res.ok) {
         const json = await res.json();
         if (json.data) setTxs(json.data);

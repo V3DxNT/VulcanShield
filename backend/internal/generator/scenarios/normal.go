@@ -22,8 +22,8 @@ func (n *NormalScenario) Next(idx int, rng *rand.Rand, pool *models.EntityPool, 
 	user := pool.Users[userIdx]
 
 	amount := randAmount(rng, user.TypicalMinAmount, user.TypicalMaxAmount)
-	deviceIdx := (idx + rng.Intn(len(pool.DeviceIDs))) % len(pool.DeviceIDs)
-	ipIdx := (idx + 1 + rng.Intn(len(pool.IPAddresses))) % len(pool.IPAddresses)
+	deviceIdx := userIdx % len(pool.DeviceIDs)
+	ipIdx := userIdx % len(pool.IPAddresses)
 	merchantIdx := (idx + 2 + rng.Intn(len(pool.MerchantIDs))) % len(pool.MerchantIDs)
 	now := progressiveTimestamp(idx, rng)
 

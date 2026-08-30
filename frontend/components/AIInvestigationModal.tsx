@@ -46,8 +46,8 @@ export default function AIInvestigationModal({ transactionID, onClose }: AIInves
       setLoading(true);
       try {
         const [invRes, txRes] = await Promise.all([
-          fetch(`/api/v1/investigations/${transactionID}`),
-          fetch(`/api/v1/transactions/${transactionID}`),
+          fetch(`/api/v1/investigations/${transactionID}`, { cache: 'no-store' }),
+          fetch(`/api/v1/transactions/${transactionID}`, { cache: 'no-store' }),
         ]);
         if (invRes.ok) setReport(await invRes.json());
         if (txRes.ok) setTxDetail(await txRes.json());
@@ -58,10 +58,10 @@ export default function AIInvestigationModal({ transactionID, onClose }: AIInves
   }, [transactionID]);
 
   const actionColors: Record<string, string> = {
-    ALLOW: 'text-green-600 bg-green-50 border-green-200',
-    CHALLENGE: 'text-amber-600 bg-amber-50 border-amber-200',
-    MANUAL_REVIEW: 'text-amber-600 bg-amber-50 border-amber-200',
-    BLOCK_ACCOUNT: 'text-red-600 bg-red-50 border-red-200',
+    ALLOW: 'text-emerald-700 bg-emerald-50 border-emerald-200',
+    CHALLENGE: 'text-amber-700 bg-amber-50 border-amber-200',
+    MANUAL_REVIEW: 'text-amber-700 bg-amber-50 border-amber-200',
+    BLOCK_ACCOUNT: 'text-red-700 bg-red-50 border-red-200',
   };
 
   const decisionReason = () => {
@@ -73,13 +73,13 @@ export default function AIInvestigationModal({ transactionID, onClose }: AIInves
 
   const modelReasons = {
     xgboost: (txDetail?.status === 'BLOCKED' || txDetail?.decision === 'BLOCK' || report?.policy_decision === 'BLOCK')
-      ? 'XGBoost explanation: score = 0.45 × amount anomaly + 0.30 × velocity signal + 0.15 × device trust + 0.10 × historical fraud context. This transaction crossed the customer norm and failed the policy gate, so the score was elevated sharply.'
+      ? 'Formula: XGBoost risk = 0.45 × amount anomaly + 0.30 × velocity signal + 0.15 × device trust + 0.10 × historical fraud context. This transaction crossed the customer norm and failed the policy gate, so the score was elevated sharply.'
       : (txDetail?.risk_score ?? report?.risk_score ?? 0) >= 60
-        ? 'XGBoost explanation: score = 0.45 × amount anomaly + 0.30 × velocity signal + 0.15 × device trust + 0.10 × historical fraud context. The transaction is outside the customer baseline, so the model raised risk even before policy review.'
-        : 'XGBoost explanation: the transaction stayed close to the customer’s baseline, so the amount, velocity, and device/IP features did not materially increase the fraud probability.',
+        ? 'Formula: XGBoost risk = 0.45 × amount anomaly + 0.30 × velocity signal + 0.15 × device trust + 0.10 × historical fraud context. The transaction is outside the customer baseline, so the model raised risk before policy review.'
+        : 'Formula: XGBoost risk = 0.45 × amount anomaly + 0.30 × velocity signal + 0.15 × device trust + 0.10 × historical fraud context. The transaction stayed close to the customer baseline, so the score remained controlled.',
     isolation: (txDetail?.challenge_status === 'FAILED' || txDetail?.challenge_status === 'EXPIRED' || txDetail?.status === 'BLOCKED')
-      ? 'Isolation Forest explanation: anomaly score rises when the transaction is far from the user’s normal cluster. Here the device/IP pattern and amount profile fell outside the expected distribution, which produced the high anomaly score.'
-      : 'Isolation Forest explanation: the transaction remained inside the user’s normal behavioral cluster, so the anomaly score stayed low and the model did not flag it as an outlier.'
+      ? 'Formula: Isolation Forest anomaly = distance from the user’s historical behavioral cluster, weighted by amount, device pattern, and IP similarity. This transaction sat far outside the expected cluster, producing a high anomaly score.'
+      : 'Formula: Isolation Forest anomaly = distance from the user’s historical behavioral cluster, weighted by amount, device pattern, and IP similarity. This transaction stayed within the normal cluster, so the anomaly score stayed low.'
   };
 
   const userID = txDetail?.user_id || report?.user_id || 'C1001';
@@ -94,8 +94,9 @@ export default function AIInvestigationModal({ transactionID, onClose }: AIInves
         {/* Header */}
         <div className="px-6 py-5 border-b border-[#e8e8ed] flex items-start justify-between">
           <div>
-            <h2 className="font-semibold text-[#1d1d1f] text-lg">AI Fraud Investigation</h2>
-            <p className="text-sm text-[#6e6e73] mt-0.5 font-mono">{transactionID}</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#6e6e73]">Investigation report</p>
+            <h2 className="mt-2 font-semibold text-[#1d1d1f] text-xl">AI Fraud Investigation</h2>
+            <p className="text-sm text-[#6e6e73] mt-1 font-mono">{transactionID}</p>
           </div>
           <button onClick={onClose} className="h-8 w-8 flex items-center justify-center rounded-full bg-[#f5f5f7] hover:bg-[#e8e8ed] text-[#6e6e73] transition-colors text-lg">×</button>
         </div>
@@ -116,30 +117,30 @@ export default function AIInvestigationModal({ transactionID, onClose }: AIInves
               </div>
               <div className="md:col-span-2 grid grid-cols-2 gap-3">
                 <div className="p-4 rounded-xl bg-[#f5f5f7] border border-[#e8e8ed]">
-                  <p className="text-xs text-[#6e6e73] mb-1">ML Fraud Probability</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#6e6e73] mb-2">ML Fraud Probability</p>
                   <p className="text-xl font-semibold text-[#1d1d1f]">{((txDetail?.fraud_probability ?? report.fraud_probability ?? 0) * 100).toFixed(1)}%</p>
-                  <p className="text-xs text-[#a1a1a6] mt-1">XGBoost Classifier</p>
+                  <p className="text-xs text-[#a1a1a6] mt-1">XGBoost classifier</p>
                 </div>
                 <div className="p-4 rounded-xl bg-[#f5f5f7] border border-[#e8e8ed]">
-                  <p className="text-xs text-[#6e6e73] mb-1">Anomaly Score</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#6e6e73] mb-2">Anomaly Score</p>
                   <p className="text-xl font-semibold text-[#1d1d1f]">{((txDetail?.anomaly_score ?? report.anomaly_score ?? 0) * 100).toFixed(1)}%</p>
                   <p className="text-xs text-[#a1a1a6] mt-1">Isolation Forest</p>
                 </div>
                 <div className="p-4 rounded-xl bg-[#f5f5f7] border border-[#e8e8ed]">
-                  <p className="text-xs text-[#6e6e73] mb-1">Transaction Amount</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#6e6e73] mb-2">Transaction Amount</p>
                   <p className="text-xl font-semibold text-[#1d1d1f]">
                     {txDetail ? `₹${txDetail.amount?.toLocaleString('en-IN')}` : '—'}
                   </p>
                   <p className="text-xs text-[#a1a1a6] mt-1">{txDetail?.currency ?? 'INR'} • {txDetail?.channel}</p>
                 </div>
                 <div className="p-4 rounded-xl bg-[#f5f5f7] border border-[#e8e8ed]">
-                  <p className="text-xs text-[#6e6e73] mb-1">AI Confidence</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#6e6e73] mb-2">AI Confidence</p>
                   <p className="text-xl font-semibold text-[#1d1d1f]">{((report.confidence ?? 0.91) * 100).toFixed(0)}%</p>
-                  <p className="text-xs text-[#a1a1a6] mt-1">LLM: {report.llm_model}</p>
+                  <p className="text-xs text-[#a1a1a6] mt-1">Model: {report.llm_model}</p>
                 </div>
                 {txDetail?.challenge_status && (
                   <div className="col-span-2 p-3 rounded-xl bg-[#f5f5f7] border border-[#e8e8ed]">
-                    <p className="text-xs text-[#6e6e73] mb-1">Step-Up OTP Outcome</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#6e6e73] mb-1">Step-Up OTP Outcome</p>
                     <p className={`text-sm font-semibold ${txDetail.challenge_status === 'VERIFIED' ? 'text-green-700' : txDetail.challenge_status === 'FAILED' || txDetail.challenge_status === 'EXPIRED' ? 'text-red-600' : 'text-amber-700'}`}>
                       {txDetail.challenge_status === 'VERIFIED' ? 'Verified — transaction approved' :
                        txDetail.challenge_status === 'FAILED' ? 'Rejected — transaction blocked' :
@@ -153,7 +154,7 @@ export default function AIInvestigationModal({ transactionID, onClose }: AIInves
             {/* Decision */}
             <div className={`p-4 rounded-xl border ${actionColors[report.policy_decision ?? report.recommended_action] ?? 'bg-[#f5f5f7] border-[#d2d2d7] text-[#1d1d1f]'}`}>
               <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-medium uppercase tracking-wide opacity-70">Authoritative Policy Decision</p>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] opacity-70">Authoritative Policy Decision</p>
                 <span className={`px-3 py-1 rounded-full text-sm font-bold border ${actionColors[report.policy_decision ?? report.recommended_action] ?? ''}`}>
                   {report.policy_decision ?? report.recommended_action}
                 </span>
@@ -164,7 +165,7 @@ export default function AIInvestigationModal({ transactionID, onClose }: AIInves
             {/* Risk progression */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="p-4 rounded-xl bg-[#f5f5f7] border border-[#e8e8ed]">
-                <p className="text-[10px] uppercase tracking-wide text-[#6e6e73] mb-2">Initial ML Risk</p>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#6e6e73] mb-2">Initial ML Risk</p>
                 <div className="flex items-center justify-between">
                   <span className="text-2xl font-semibold text-[#1d1d1f]">{initialRisk}</span>
                   <span className="text-xs font-medium text-[#6e6e73]">/ 100</span>
@@ -172,7 +173,7 @@ export default function AIInvestigationModal({ transactionID, onClose }: AIInves
                 <p className="mt-2 text-xs text-[#6e6e73]">Raw model output before policy review.</p>
               </div>
               <div className="p-4 rounded-xl bg-[#f5f5f7] border border-[#e8e8ed]">
-                <p className="text-[10px] uppercase tracking-wide text-[#6e6e73] mb-2">Final Policy Risk</p>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#6e6e73] mb-2">Final Policy Risk</p>
                 <div className="flex items-center justify-between">
                   <span className="text-2xl font-semibold text-[#0071e3]">{finalRisk}</span>
                   <span className="text-xs font-medium text-[#6e6e73]">/ 100</span>
@@ -197,9 +198,9 @@ export default function AIInvestigationModal({ transactionID, onClose }: AIInves
               </div>
               <p className="text-sm text-[#1d1d1f] leading-relaxed whitespace-pre-line">{report.summary}</p>
               <div className="mt-3 pt-3 border-t border-blue-200">
-                <p className="text-[10px] uppercase tracking-wide text-[#6e6e73]">AI Confidence</p>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#6e6e73]">AI Confidence</p>
                 <p className="text-xs text-[#1d1d1f] mt-1 leading-relaxed">
-                  AI confidence means how strongly the retrieved evidence and user history support the current policy outcome. It is not a payment authorization score.
+                  Confidence reflects how strongly the retrieved evidence and recent user history support the current policy outcome. It is not a payment authorization score.
                 </p>
               </div>
             </div>
@@ -223,6 +224,23 @@ export default function AIInvestigationModal({ transactionID, onClose }: AIInves
                   )}
                 </div>
               ))}
+            </div>
+            <div className="rounded-xl border border-[#d2d2d7] bg-[#f5f5f7] p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#6e6e73]">Signal breakdown</p>
+              <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="rounded-lg border border-[#d2d2d7] bg-white p-3">
+                  <p className="text-[10px] uppercase tracking-[0.14em] text-[#6e6e73]">Amount deviation</p>
+                  <p className="mt-2 text-lg font-semibold text-[#1d1d1f]">{txDetail ? `₹${Number(txDetail.amount || 0).toLocaleString('en-IN')}` : '—'}</p>
+                </div>
+                <div className="rounded-lg border border-[#d2d2d7] bg-white p-3">
+                  <p className="text-[10px] uppercase tracking-[0.14em] text-[#6e6e73]">Device trust</p>
+                  <p className="mt-2 text-lg font-semibold text-[#1d1d1f]">{txDetail?.device_id ? 'Known' : 'Unknown'}</p>
+                </div>
+                <div className="rounded-lg border border-[#d2d2d7] bg-white p-3">
+                  <p className="text-[10px] uppercase tracking-[0.14em] text-[#6e6e73]">IP trust</p>
+                  <p className="mt-2 text-lg font-semibold text-[#1d1d1f]">{txDetail?.ip_address ? 'Monitored' : 'Unknown'}</p>
+                </div>
+              </div>
             </div>
 
             {/* Retrieval trace */}

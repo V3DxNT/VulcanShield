@@ -32,63 +32,63 @@ export default function KPICards({ totalTx, approvedTx, challengedTx, blockedTx,
       label: 'Valid Revenue',
       value: formatINR(legitRevenue),
       sub: 'Final approved value',
-      color: 'text-green-600',
-      bg: 'bg-green-50',
-      border: 'border-green-100',
+      color: 'text-emerald-700',
+      bg: 'bg-emerald-50',
+      border: 'border-emerald-200',
     },
     {
       key: 'challenged' as const,
       label: 'Challenge → Accepted',
       value: formatINR(otpVerifiedRevenue),
       sub: 'OTP verified / accepted',
-      color: 'text-amber-600',
+      color: 'text-amber-700',
       bg: 'bg-amber-50',
-      border: 'border-amber-100',
+      border: 'border-amber-200',
     },
     {
       key: 'blocked' as const,
       label: 'Challenge → Rejected',
       value: formatINR(otpRejectedRevenue),
       sub: 'OTP failed / expired',
-      color: 'text-red-500',
+      color: 'text-red-700',
       bg: 'bg-red-50',
-      border: 'border-red-100',
+      border: 'border-red-200',
     },
     {
       key: 'approved' as const,
       label: 'Approved',
       value: approvedTx,
       sub: 'Final status approved',
-      color: 'text-emerald-600',
+      color: 'text-emerald-700',
       bg: 'bg-emerald-50',
-      border: 'border-emerald-100',
+      border: 'border-emerald-200',
     },
     {
       key: 'challenged' as const,
       label: 'Challenged',
       value: challengedTx,
       sub: 'Awaiting step-up verification',
-      color: 'text-orange-600',
+      color: 'text-orange-700',
       bg: 'bg-orange-50',
-      border: 'border-orange-100',
+      border: 'border-orange-200',
     },
     {
       key: 'blocked' as const,
       label: 'Blocked',
       value: blockedTx,
       sub: 'Final status blocked',
-      color: 'text-red-500',
+      color: 'text-red-700',
       bg: 'bg-red-50',
-      border: 'border-red-100',
+      border: 'border-red-200',
     },
     {
       key: 'all' as const,
       label: 'Fraud Loss Avoided',
       value: formatINR(fraudLossAvoided),
       sub: 'Protected by policy',
-      color: 'text-violet-600',
+      color: 'text-violet-700',
       bg: 'bg-violet-50',
-      border: 'border-violet-100',
+      border: 'border-violet-200',
     },
   ];
 
@@ -99,11 +99,14 @@ export default function KPICards({ totalTx, approvedTx, challengedTx, blockedTx,
           key={`${c.label}-${i}`}
           type="button"
           onClick={() => onCategoryClick?.(c.key)}
-          className={`p-5 rounded-2xl border ${c.bg} ${c.border} shadow-sm text-left transition-transform hover:-translate-y-0.5`}
+          className={`p-5 rounded-2xl border ${c.bg} ${c.border} shadow-sm text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md`}
         >
-          <p className="text-xs font-medium text-[#6e6e73] uppercase tracking-wide mb-1">{c.label}</p>
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#6e6e73]">{c.label}</p>
+            <span className="h-2.5 w-2.5 rounded-full bg-[#1d1d1f]/10" />
+          </div>
           <p className={`text-2xl font-semibold ${c.color} tabular-nums`}>{typeof c.value === 'number' ? c.value.toLocaleString('en-IN') : c.value}</p>
-          <p className="text-xs text-[#a1a1a6] mt-1">{c.sub}</p>
+          <p className="text-xs text-[#6e6e73] mt-2">{c.sub}</p>
         </button>
       ))}
     </div>

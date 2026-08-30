@@ -9,6 +9,12 @@ import (
 	"github.com/vulcanshield/backend/internal/models"
 )
 
+func setNoStoreHeaders(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
+}
+
 type GraphHandlers struct {
 	GraphRepo repository.GraphRepository
 	Engine    *graph.Engine
@@ -16,6 +22,8 @@ type GraphHandlers struct {
 
 // ListRelationships handles GET /api/v1/graph/relationships.
 func (h *GraphHandlers) ListRelationships(w http.ResponseWriter, r *http.Request) {
+	setNoStoreHeaders(w)
+
 	limit := 100
 	if lStr := r.URL.Query().Get("limit"); lStr != "" {
 		if l, err := strconv.Atoi(lStr); err == nil && l > 0 {
@@ -47,6 +55,8 @@ func (h *GraphHandlers) ListRelationships(w http.ResponseWriter, r *http.Request
 
 // GetNeighbors handles GET /api/v1/graph/neighbors/{user_id}.
 func (h *GraphHandlers) GetNeighbors(w http.ResponseWriter, r *http.Request) {
+	setNoStoreHeaders(w)
+
 	userID := r.PathValue("user_id")
 	if userID == "" {
 		writeError(w, http.StatusBadRequest, "MISSING_USER_ID", "user_id is required")

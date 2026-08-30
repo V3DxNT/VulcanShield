@@ -11,7 +11,7 @@ export default function GraphVisualizer() {
     try {
       const params = new URLSearchParams(window.location.search);
       const targetUser = params.get('user') || '';
-      const res = await fetch(`/api/v1/graph/relationships?limit=200${targetUser ? `&user_id=${encodeURIComponent(targetUser)}` : ''}`);
+      const res = await fetch(`/api/v1/graph/relationships?limit=200${targetUser ? `&user_id=${encodeURIComponent(targetUser)}` : ''}`, { cache: 'no-store' });
       if (res.ok) {
         const json = await res.json();
         const data: GraphEdge[] = json.data ?? [];
