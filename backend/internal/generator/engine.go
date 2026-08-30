@@ -9,30 +9,43 @@ import (
 	"sync"
 	"time"
 
+	"github.com/vulcanshield/backend/internal/challenge"
 	"github.com/vulcanshield/backend/internal/db/repository"
+	"github.com/vulcanshield/backend/internal/features"
 	"github.com/vulcanshield/backend/internal/kafka"
+	"github.com/vulcanshield/backend/internal/mlclient"
 	"github.com/vulcanshield/backend/internal/models"
+	"github.com/vulcanshield/backend/internal/policy"
+	appredis "github.com/vulcanshield/backend/internal/redis"
+	"github.com/vulcanshield/backend/internal/risk"
+	appws "github.com/vulcanshield/backend/internal/websocket"
 )
 
 // ErrScenarioRunning is returned when Start is called while a scenario is already running.
 var ErrScenarioRunning = errors.New("a scenario is already running")
 
-// Engine manages the lifecycle of scenario generation runs.
-// Constraints enforced:
-//   - Only one scenario may run at a time (returns ErrScenarioRunning on conflict).
-//   - Stop() blocks until the generator goroutine has fully exited (guaranteed).
-//   - Kafka failure is logged as a warning but does NOT suppress the transaction record.
-//   - PostgreSQL failure on transaction save is a hard error that halts generation.
+// Engine manages the lifecycle of scenario generation runs and orchestrates the risk pipeline.
 type Engine struct {
-	mu         sync.Mutex
-	active     *models.ScenarioRun
-	cancelFn   context.CancelFunc
-	done       chan struct{}
-	log        *slog.Logger
-	txRepo     repository.TransactionRepository
-	scRepo     repository.ScenarioRepository
-	entityRepo repository.EntityRepository
-	kafka      *kafka.Producer // may be nil if Kafka unavailable
+	mu             sync.Mutex
+	active         *models.ScenarioRun
+	cancelFn       context.CancelFunc
+	done           chan struct{}
+	log            *slog.Logger
+	txRepo         repository.TransactionRepository
+	scRepo         repository.ScenarioRepository
+	entityRepo     repository.EntityRepository
+	riskRepo       repository.RiskRepository
+	policyRepo     repository.PolicyRepository
+	challengeRepo  repository.ChallengeRepository
+	userRepo       repository.UserRepository
+	kafka          *kafka.Producer
+	velocityEngine *appredis.VelocityEngine
+	featureBuilder *features.FeatureBuilder
+	mlClient       *mlclient.Client
+	riskEvaluator  *risk.Evaluator
+	policyEngine   *policy.Engine
+	otpService     *challenge.Service
+	wsHub          *appws.Hub
 }
 
 // NewEngine creates an Engine ready to accept Start calls.
@@ -41,14 +54,33 @@ func NewEngine(
 	txRepo repository.TransactionRepository,
 	scRepo repository.ScenarioRepository,
 	entityRepo repository.EntityRepository,
+	riskRepo repository.RiskRepository,
+	policyRepo repository.PolicyRepository,
+	challengeRepo repository.ChallengeRepository,
+	userRepo repository.UserRepository,
 	kafkaProducer *kafka.Producer,
+	velocityEngine *appredis.VelocityEngine,
+	mlClient *mlclient.Client,
+	otpService *challenge.Service,
+	wsHub *appws.Hub,
 ) *Engine {
 	return &Engine{
-		log:        log,
-		txRepo:     txRepo,
-		scRepo:     scRepo,
-		entityRepo: entityRepo,
-		kafka:      kafkaProducer,
+		log:            log,
+		txRepo:         txRepo,
+		scRepo:         scRepo,
+		entityRepo:     entityRepo,
+		riskRepo:       riskRepo,
+		policyRepo:     policyRepo,
+		challengeRepo:  challengeRepo,
+		userRepo:       userRepo,
+		kafka:          kafkaProducer,
+		velocityEngine: velocityEngine,
+		featureBuilder: features.NewFeatureBuilder(),
+		mlClient:       mlClient,
+		riskEvaluator:  risk.NewEvaluator(),
+		policyEngine:   policy.NewEngine(),
+		otpService:     otpService,
+		wsHub:          wsHub,
 	}
 }
 
@@ -145,6 +177,11 @@ func (e *Engine) runLoop(ctx context.Context, run *models.ScenarioRun, req model
 		return
 	}
 
+	userMap := make(map[string]*models.UserProfile)
+	for i := range pool.Users {
+		userMap[pool.Users[i].UserID] = &pool.Users[i]
+	}
+
 	scene := ScenarioFor(req.Scenario)
 	gen := NewBaseGenerator(req.Seed, pool, scene)
 
@@ -171,10 +208,49 @@ func (e *Engine) runLoop(ctx context.Context, run *models.ScenarioRun, req model
 		case <-ticker.C:
 			tx := gen.Next(generated, targetUserIndex)
 
-			// 1. Persist to PostgreSQL (authoritative store — hard failure halts run)
+			// ── Phase 5: Redis Velocity Signals ─────────────────────────────
+			if e.velocityEngine != nil {
+				_ = e.velocityEngine.RecordTransaction(ctx, &tx)
+			}
+			velocitySignals, _ := e.velocityEngine.GetVelocitySignals(ctx, &tx)
+
+			// Determine emulator/vpn flags based on seed entity index heuristics
+			isEmulator := tx.DeviceID == pool.DeviceIDs[len(pool.DeviceIDs)-1]
+			isVPN := tx.IPAddress == pool.IPAddresses[len(pool.IPAddresses)-1]
+
+			// ── Phase 7: Feature Pipeline ───────────────────────────────────
+			userProf := userMap[tx.UserID]
+			predictReq := e.featureBuilder.BuildVector(&tx, userProf, velocitySignals, isEmulator, isVPN)
+
+			// ── Phase 6: ML Service Prediction ──────────────────────────────
+			var mlResp *mlclient.PredictResponse
+			if e.mlClient != nil {
+				mlResp, _ = e.mlClient.Predict(ctx, predictReq)
+			}
+
+			// ── Phase 8: Risk Scoring (0–100) ───────────────────────────────
+			riskAssessment := e.riskEvaluator.Evaluate(&tx, mlResp, velocitySignals)
+
+			// ── Phase 9: Policy Engine (ALLOW / CHALLENGE / BLOCK) ─────────
+			policyDecision, updatedStatus := e.policyEngine.Evaluate(&tx, riskAssessment, userProf, nil)
+			tx.Status = updatedStatus
+
+			// ── Phase 10: Step-Up OTP Challenge (if CHALLENGED) ─────────────
+			if policyDecision.Decision == models.DecisionChallenge && e.otpService != nil {
+				otpChallenge, demoOTP, _ := e.otpService.GenerateChallenge(ctx, tx.TransactionID)
+				if e.challengeRepo != nil && otpChallenge != nil {
+					_ = e.challengeRepo.Create(ctx, otpChallenge)
+					e.log.Info("generator: step-up OTP challenge generated",
+						"transaction_id", tx.TransactionID,
+						"challenge_id", otpChallenge.ChallengeID,
+						"demo_otp", demoOTP,
+					)
+				}
+			}
+
+			// 1. Persist Transaction to PostgreSQL (authoritative store)
 			if err := e.txRepo.Create(ctx, &tx); err != nil {
 				if ctx.Err() != nil {
-					// Shutdown in progress — tolerate the error
 					e.finalizeWithCount(run, models.ScenarioStopped, generated)
 					return
 				}
@@ -184,24 +260,47 @@ func (e *Engine) runLoop(ctx context.Context, run *models.ScenarioRun, req model
 				return
 			}
 
-			// 2. Audit event (non-fatal on failure)
+			// 2. Persist Risk Assessment & Policy Decision to PostgreSQL
+			if e.riskRepo != nil && riskAssessment != nil {
+				if err := e.riskRepo.Create(ctx, riskAssessment); err != nil {
+					e.log.Warn("generator: failed to persist risk assessment", "error", err, "transaction_id", tx.TransactionID)
+				}
+			}
+			if e.policyRepo != nil && policyDecision != nil {
+				if err := e.policyRepo.Create(ctx, policyDecision); err != nil {
+					e.log.Warn("generator: failed to persist policy decision", "error", err, "transaction_id", tx.TransactionID)
+				}
+			}
+
+			// 3. Audit events (TRANSACTION_CREATED & RISK_CALCULATED)
 			auditDetails := map[string]any{
 				"scenario_id":   run.ScenarioID,
 				"scenario_type": string(run.ScenarioType),
 				"amount":        tx.Amount,
 				"user_id":       tx.UserID,
+				"risk_score":    riskAssessment.RiskScore,
 			}
-			if err := e.scRepo.InsertAuditEvent(ctx, tx.TransactionID, "TRANSACTION_CREATED", auditDetails); err != nil {
-				e.log.Warn("generator: audit event insert failed", "error", err, "transaction_id", tx.TransactionID)
+			_ = e.scRepo.InsertAuditEvent(ctx, tx.TransactionID, "TRANSACTION_CREATED", auditDetails)
+			_ = e.scRepo.InsertAuditEvent(ctx, tx.TransactionID, "RISK_CALCULATED", map[string]any{
+				"risk_score":        riskAssessment.RiskScore,
+				"fraud_probability": riskAssessment.FraudProbability,
+				"anomaly_score":     riskAssessment.AnomalyScore,
+			})
+
+			// 4. Kafka event publication (transaction.created & risk.evaluated)
+			if e.kafka != nil {
+				txPayload, _ := json.Marshal(tx)
+				_ = e.kafka.Produce(ctx, kafka.TopicTransactionCreated, tx.TransactionID, txPayload)
+
+				riskPayload, _ := json.Marshal(riskAssessment)
+				_ = e.kafka.Produce(ctx, kafka.TopicRiskEvaluated, tx.TransactionID, riskPayload)
 			}
 
-			// 3. Kafka event publication (non-fatal — Kafka failure must not suppress created record)
-			if e.kafka != nil {
-				payload, _ := json.Marshal(tx)
-				if err := e.kafka.Produce(ctx, kafka.TopicTransactionCreated, tx.TransactionID, payload); err != nil {
-					e.log.Warn("generator: kafka produce failed", "error", err, "transaction_id", tx.TransactionID)
-					// Do NOT halt — transaction is already persisted in PostgreSQL
-				}
+			// 5. WebSocket Real-Time Event Broadcasts (Phase 13)
+			if e.wsHub != nil {
+				e.wsHub.Broadcast("transaction_created", tx)
+				e.wsHub.Broadcast("risk_updated", riskAssessment)
+				e.wsHub.Broadcast("decision_created", policyDecision)
 			}
 
 			generated++
@@ -209,10 +308,10 @@ func (e *Engine) runLoop(ctx context.Context, run *models.ScenarioRun, req model
 			run.GeneratedCount = generated
 			e.mu.Unlock()
 
-			e.log.Debug("generator: transaction emitted",
+			e.log.Debug("generator: transaction pipeline completed",
 				"transaction_id", tx.TransactionID,
 				"amount", tx.Amount,
-				"user_id", tx.UserID,
+				"risk_score", riskAssessment.RiskScore,
 				"scenario_id", run.ScenarioID,
 			)
 		}
@@ -235,7 +334,6 @@ func (e *Engine) finalizeWithCount(run *models.ScenarioRun, status models.Scenar
 	run.EndedAt = &now
 	e.mu.Unlock()
 
-	// Best-effort DB update — use a fresh background context as the run ctx may be cancelled
 	updateCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := e.scRepo.UpdateStatus(updateCtx, run.ScenarioID, status, &now); err != nil {

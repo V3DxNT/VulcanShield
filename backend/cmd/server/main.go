@@ -8,15 +8,20 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/vulcanshield/backend/internal/aiclient"
 	v1 "github.com/vulcanshield/backend/internal/api/v1"
+	"github.com/vulcanshield/backend/internal/challenge"
 	"github.com/vulcanshield/backend/internal/config"
 	appdb "github.com/vulcanshield/backend/internal/db"
 	"github.com/vulcanshield/backend/internal/db/repository"
 	"github.com/vulcanshield/backend/internal/generator"
+	"github.com/vulcanshield/backend/internal/graph"
 	"github.com/vulcanshield/backend/internal/kafka"
 	"github.com/vulcanshield/backend/internal/logger"
+	"github.com/vulcanshield/backend/internal/mlclient"
 	appredis "github.com/vulcanshield/backend/internal/redis"
 	"github.com/vulcanshield/backend/internal/server"
+	appws "github.com/vulcanshield/backend/internal/websocket"
 )
 
 func main() {
@@ -67,13 +72,31 @@ func main() {
 			"brokers", cfg.KafkaBrokers)
 	}
 
-	// ── 6. Repositories ──────────────────────────────────────────────────────
+	// ── 6. Repositories & Engine Services ────────────────────────────────────
 	txRepo := repository.NewTransactionRepository(pool)
 	scRepo := repository.NewScenarioRepository(pool)
 	entityRepo := repository.NewEntityRepository(pool)
+	riskRepo := repository.NewRiskRepository(pool)
+	policyRepo := repository.NewPolicyRepository(pool)
+	challengeRepo := repository.NewChallengeRepository(pool)
+	graphRepo := repository.NewGraphRepository(pool)
+	userRepo := repository.NewUserRepository(pool)
+
+	var velocityEngine *appredis.VelocityEngine
+	if redisClient != nil {
+		velocityEngine = appredis.NewVelocityEngine(redisClient)
+	}
+	mlClient := mlclient.NewClient(cfg.MLServiceURL)
+	otpService := challenge.NewService(redisClient)
+	graphEngine := graph.NewEngine(graphRepo)
+	wsHub := appws.NewHub(log)
 
 	// ── 7. Generator Engine ──────────────────────────────────────────────────
-	engine := generator.NewEngine(log, txRepo, scRepo, entityRepo, kafkaProducer)
+	engine := generator.NewEngine(
+		log, txRepo, scRepo, entityRepo, riskRepo,
+		policyRepo, challengeRepo, userRepo,
+		kafkaProducer, velocityEngine, mlClient, otpService, wsHub,
+	)
 
 	// ── 8. Build Probers for readiness endpoint ──────────────────────────────
 	pgProber := server.NewPgxProber(pool.Ping)
@@ -106,6 +129,22 @@ func main() {
 		Transactions: &v1.TransactionHandlers{
 			TxRepo: txRepo,
 		},
+		Challenges: &v1.ChallengeHandlers{
+			ChallengeRepo: challengeRepo,
+			TxRepo:        txRepo,
+			PolicyRepo:    policyRepo,
+			OTPService:    otpService,
+		},
+		Graph: &v1.GraphHandlers{
+			GraphRepo: graphRepo,
+			Engine:    graphEngine,
+		},
+		Investigations: &v1.InvestigationHandlers{
+			TxRepo:   txRepo,
+			RiskRepo: riskRepo,
+			AIClient: aiclient.NewClient(cfg.AIServiceURL),
+		},
+		WSHub: wsHub,
 	}
 
 	router := server.NewRouter(server.Dependencies{

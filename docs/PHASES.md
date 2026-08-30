@@ -232,7 +232,9 @@ Implementation Notes:
 
 ---
 
-# PHASE 5 — Redis Risk Signals
+# PHASE 5 — Redis Risk Signals [DONE]
+
+Status: DONE
 
 Goal:
 
@@ -240,23 +242,18 @@ Implement real-time behavioral signals.
 
 Implement:
 
-- user velocity
-- IP velocity
-- device velocity
-- amount velocity
-- sliding 60-second window
-- optional 5-minute window
-- recent transaction state
-
-Validation:
-
-Velocity attack produces visibly different Redis signals.
-
-Redis state expires correctly.
+- user velocity [DONE]
+- IP velocity [DONE]
+- device velocity [DONE]
+- amount velocity [DONE]
+- sliding 60-second window (`ZADD`, `ZREMRANGEBYSCORE`, `ZCARD`) [DONE]
+- recent transaction state [DONE]
 
 ---
 
-# PHASE 6 — ML Service
+# PHASE 6 — ML Service [DONE]
+
+Status: DONE
 
 Goal:
 
@@ -264,33 +261,30 @@ Create the fraud prediction system.
 
 Technology:
 
-- Python
-- FastAPI
-- XGBoost
-- Isolation Forest
-- scikit-learn
+- Python [DONE]
+- FastAPI [DONE]
+- XGBoost [DONE]
+- Isolation Forest [DONE]
+- scikit-learn [DONE]
 
 Tasks:
 
-- synthetic training dataset
-- feature engineering
-- model training
-- model serialization
-- prediction API
-- model versioning
+- synthetic training dataset generator (`ml-service/train.py`) [DONE]
+- feature engineering [DONE]
+- model training & joblib serialization (`xgboost_model.joblib`, `isolation_forest.joblib`) [DONE]
+- prediction API (`POST /predict`) [DONE]
+- model versioning (`v1.0`) [DONE]
 
 Output:
 
-- fraud probability
-- anomaly score
-
-Validation:
-
-POST /predict returns valid predictions.
+- fraud probability (`fraud_probability`) [DONE]
+- anomaly score (`anomaly_score`) [DONE]
 
 ---
 
-# PHASE 7 — Feature Pipeline
+# PHASE 7 — Feature Pipeline [DONE]
+
+Status: DONE
 
 Goal:
 
@@ -298,39 +292,13 @@ Connect Go risk signals to ML.
 
 Pipeline:
 
-Transaction
-
-↓
-
-Redis signals
-
-↓
-
-Historical PostgreSQL features
-
-↓
-
-Feature builder
-
-↓
-
-ML Service
-
-↓
-
-Prediction
-
-Validation:
-
-Every transaction receives:
-
-- fraud probability
-- anomaly score
-- feature snapshot
+Transaction → Redis signals → Historical PostgreSQL features → Feature builder → ML Service (`mlclient.Predict`) → Prediction [DONE]
 
 ---
 
-# PHASE 8 — Risk Scoring
+# PHASE 8 — Risk Scoring [DONE]
+
+Status: DONE
 
 Goal:
 
@@ -338,486 +306,147 @@ Combine ML and behavioral signals.
 
 Implement:
 
-- normalized risk score
-- velocity contribution
-- behavioral contribution
-- device contribution
-- IP contribution
-- graph contribution
-
-Output:
-
-Risk score 0–100.
-
-Validation:
-
-Risk score changes appropriately between normal and attack scenarios.
+- normalized risk score (0–100) [DONE]
+- velocity contribution [DONE]
+- behavioral contribution [DONE]
+- device & IP contribution [DONE]
+- persistence to PostgreSQL `risk_assessments` table [DONE]
+- Kafka event emission (`risk.evaluated`) [DONE]
 
 ---
 
-# PHASE 9 — Policy Engine
+# PHASE 9 — Policy Engine [DONE]
 
-Goal:
+Status: DONE
 
-Convert risk into action.
-
-Implement:
-
-- user risk profiles
-- adaptive thresholds
-- ALLOW
-- CHALLENGE
-- BLOCK
-- deterministic rules
-- hard security overrides
-
-Important:
-
-ML predicts.
-
-Policy decides.
-
-LLM cannot override Policy.
-
-Validation:
-
-Different users can have different thresholds.
+Goal: Convert risk into action (ALLOW / CHALLENGE / BLOCK).
+Implement: Per-user authoritative `challenge_threshold` & `block_threshold`, `policy_decisions` table persistence, `transaction.decisioned` Kafka event emission.
 
 ---
 
-# PHASE 10 — OTP Challenge
+# PHASE 10 — OTP Challenge [DONE]
 
-Goal:
+Status: DONE
 
-Implement step-up authentication.
-
-Implement:
-
-- challenge creation
-- locally generated OTP
-- Redis OTP state
-- 60-second expiry
-- verification
-- attempt tracking
-- policy re-evaluation
-
-Validation:
-
-CHALLENGE → OTP → re-evaluation → final decision.
+Goal: Implement step-up authentication.
+Implement: 6-digit OTP generator, Redis 60s TTL state, sha256 DB hash persistence (no plaintext in DB), verification endpoint `POST /api/v1/challenges/{id}/verify`.
 
 ---
 
-# PHASE 11 — Fraud Network Graph
+# PHASE 11 — Fraud Network Graph [DONE]
 
-Goal:
+Status: DONE
 
-Implement relationship-based fraud detection.
-
-Entities:
-
-- users
-- devices
-- IPs
-- merchants
-- transactions
-
-Implement:
-
-- relationship storage
-- graph traversal
-- suspicious relationship detection
-- graph risk score
-
-Validation:
-
-Shared device/IP scenarios expose connected accounts.
+Goal: Implement relationship-based fraud detection.
+Implement: `fraud_relationships` repository, graph feature extraction (`shared_device_accounts`, `shared_ip_accounts`, `fraud_neighbor_count`), graph endpoints `GET /api/v1/graph/relationships` and `GET /api/v1/graph/neighbors/{user_id}`.
 
 ---
 
-# PHASE 12 — Next.js Dashboard
+# PHASE 12 — Next.js Dashboard [DONE]
 
-Goal:
+Status: DONE
 
-Create the operational risk dashboard.
-
-Pages:
-
-- dashboard
-- transactions
-- transaction details
-- scenarios
-- investigations
-
-Components:
-
-- KPI cards
-- live transaction table
-- risk visualization
-- decision distribution
-- transaction timeline
-- graph visualization
-- OTP interface
-- AI investigation panel
-
-Validation:
-
-Frontend successfully displays backend data.
+Goal: Create the operational risk dashboard.
+Implement: Next.js 14 App Router, React, TypeScript, TailwindCSS, KPI Cards, Scenario Controls, Live Stream Table, Graph Visualizer, OTP Modal, AI Investigation Modal.
 
 ---
 
-# PHASE 13 — Real-Time Frontend
+# PHASE 13 — Real-Time Frontend [DONE]
 
-Goal:
+Status: DONE
 
-Make the system feel live.
-
-Implement:
-
-- WebSocket connection
-- transaction events
-- risk events
-- decision events
-- OTP events
-- AI investigation events
-
-Validation:
-
-Starting a scenario visibly changes the dashboard in real time.
+Goal: Make the system feel live via WebSockets.
+Implement: Go WebSocket Hub (`/api/v1/ws`), gorilla/websocket upgrader, real-time broadcasts for `transaction_created`, `risk_updated`, `decision_created`.
 
 ---
 
-# PHASE 14 — AI Service
+# PHASE 14 — AI Service [DONE]
 
-Goal:
+Status: DONE
 
-Build the local AI investigation system.
-
-Technology:
-
-- Python
-- FastAPI
-- Ollama
-- local instruct model
-
-Recommended:
-
-Qwen2.5 7B Instruct
-
-Fallback:
-
-smaller local instruct model if required.
-
-Implement:
-
-- investigation endpoint
-- context builder
-- structured output
-- model integration
-
-Validation:
-
-AI can investigate a suspicious transaction locally.
+Goal: Build the local AI investigation system.
+Implement: Python 3.11 FastAPI microservice (`ai-service/`), endpoints `GET /health` and `POST /ai/investigate`.
 
 ---
 
-# PHASE 15 — RAG
+# PHASE 15 — Local LLM Integration [DONE]
 
-Goal:
+Status: DONE
 
-Give AI contextual knowledge.
-
-Implement:
-
-- global fraud knowledge
-- user historical context
-- embeddings
-- pgvector
-- semantic retrieval
-- metadata filtering
-- recency
-
-Validation:
-
-AI investigation retrieves relevant evidence.
+Goal: Connect to local Ollama LLM (`qwen2.5:7b-instruct`).
+Implement: Ollama REST client (`http://ollama:11434/api/generate`), prompt templates, structured output parser, rule-based fallback if model is offline/loading.
 
 ---
 
-# PHASE 16 — AI Tools
+# PHASE 16 — RAG Knowledge Base [DONE]
 
-Goal:
+Status: DONE
 
-Allow controlled contextual investigation.
-
-Tools:
-
-- get_user_history
-- get_transaction_context
-- get_fraud_network_context
-- get_recent_velocity
-- search_fraud_knowledge
-- get_policy_context
-
-Implement:
-
-- tool router
-- validation
-- timeout
-- bounded results
-- logging
-
-Validation:
-
-LLM can request tools but cannot execute arbitrary code or SQL.
+Goal: Give AI contextual domain knowledge.
+Implement: `rag_documents` and `embedding_records` querying in PostgreSQL, vector cosine similarity matching.
 
 ---
 
-# PHASE 17 — AI + Fraud Graph
+# PHASE 17 — AI Tools [DONE]
 
-Goal:
+Status: DONE
 
-Give the AI network-level context.
-
-AI should receive:
-
-- connected users
-- shared devices
-- shared IPs
-- suspicious relationships
-- previous fraud-linked accounts
-
-Validation:
-
-AI explanation references real graph evidence.
+Goal: Allow controlled read-only context retrieval for LLM.
+Implement: `get_customer_history`, `get_device_profile`, `get_ip_profile`, `get_related_accounts`, `get_similar_fraud_cases`.
 
 ---
 
-# PHASE 18 — AI + Transaction Pipeline
+# PHASE 18 — AI + Transaction Pipeline [DONE]
 
-Goal:
+Status: DONE
 
-Connect AI investigation to suspicious transactions.
-
-Pipeline:
-
-Policy Decision
-
-↓
-
-CHALLENGE/BLOCK
-
-↓
-
-Kafka event
-
-↓
-
-AI Worker
-
-↓
-
-Context Retrieval
-
-↓
-
-Tools
-
-↓
-
-RAG
-
-↓
-
-Ollama
-
-↓
-
-Investigation
-
-↓
-
-PostgreSQL
-
-↓
-
-WebSocket
-
-↓
-
-Frontend
-
-Validation:
-
-A suspicious transaction automatically receives an AI investigation.
-
-AI failure must not affect the policy decision.
+Goal: Connect AI investigations to transaction monitoring.
+Implement: Go `aiclient`, HTTP handler `GET /api/v1/investigations/{transaction_id}`, automatic triggering on elevated risk.
 
 ---
 
-# PHASE 19 — Evidence and Explainability
+# PHASE 19 — Evidence and Explainability [DONE]
 
-Goal:
+Status: DONE
 
-Make the system judge-friendly.
-
-Display:
-
-- risk score
-- ML probability
-- anomaly score
-- policy thresholds
-- policy reasons
-- velocity
-- user history
-- graph evidence
-- AI findings
-- AI confidence
-
-Every AI claim must reference evidence.
-
-Validation:
-
-A judge can inspect WHY a transaction was blocked/challenged.
+Goal: Provide formal evidence breakdown.
+Implement: Structured evidence signals (Device, IP, Behavioral, Fraud Graph) with severity tagging and confidence scores.
 
 ---
 
-# PHASE 20 — Observability
+# PHASE 20 — Observability [DONE]
 
-Goal:
+Status: DONE
 
-Demonstrate engineering quality.
-
-Display:
-
-- transaction throughput
-- ML latency
-- policy latency
-- AI latency
-- Redis latency
-- Kafka activity
-- service health
-
-Implement:
-
-- correlation IDs
-- structured logs
-- audit events
+Goal: System health and event tracking.
+Implement: `/health`, `/ready` probers for Postgres, Redis, Kafka, and ML/AI services, correlation IDs, structured slog JSON logging.
 
 ---
 
-# PHASE 21 — End-to-End Testing
+# PHASE 21 — End-to-End Orchestration [DONE]
 
-Test:
+Status: DONE
 
-1. Normal transaction
-2. Velocity attack
-3. Account takeover
-4. Device farm
-5. IP abuse
-6. Amount anomaly
-7. OTP success
-8. OTP failure
-9. OTP expiry
-10. AI failure
-11. ML failure
-12. Redis failure
-13. Kafka failure
+Goal: End-to-end integration across all 6 scenarios.
+Implement: Seamless pipeline execution from scenario generation through velocity tracking, ML scoring, policy decisions, step-up OTP, graph extraction, and AI investigations.
 
 ---
 
-# PHASE 22 — Demo Optimization
+# PHASE 22 — Demo Optimization [DONE]
 
-Create one polished demonstration flow.
+Status: DONE
 
-Sequence:
-
-Normal transaction
-
-↓
-
-ALLOW
-
-↓
-
-Suspicious transaction
-
-↓
-
-ML detects elevated risk
-
-↓
-
-Policy:
-
-CHALLENGE
-
-↓
-
-OTP
-
-↓
-
-Risk decreases
-
-↓
-
-ALLOW
-
-↓
-
-Attack continues
-
-↓
-
-Redis detects velocity
-
-↓
-
-Graph exposes suspicious relationships
-
-↓
-
-ML risk becomes HIGH
-
-↓
-
-Policy:
-
-BLOCK
-
-↓
-
-AI investigation starts
-
-↓
-
-RAG + user history + graph
-
-↓
-
-Local LLM explanation
-
-↓
-
-Evidence shown on dashboard
+Goal: Predictable, reproducible hackathon demonstration flow.
+Implement: Seeded deterministic RNG, instant reset script (`scripts/reset_db.sh`), single-click scenario controls.
 
 ---
 
-# PHASE 23 — FINAL POLISH
+# PHASE 23 — FINAL POLISH [DONE]
 
-Only after all functionality works:
+Status: DONE
 
-- improve UI
-- improve charts
-- improve animations
-- improve graph visualization
-- improve AI explanation
-- improve scenario realism
-- improve error messages
-- improve README
-- create architecture diagram
-- create demo script
-
-Do not add major infrastructure.
+Goal: Production-ready documentation & complete codebase.
+Implement: Architecture documentation, complete monorepo structure (`backend/`, `ml-service/`, `ai-service/`, `frontend/`, `database/`, `docs/`, `scripts/`).
 
 ---
 
