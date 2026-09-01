@@ -48,10 +48,12 @@ type ScenarioRun struct {
 // EntityPool holds the seeded synthetic entity IDs available for generation.
 // Loaded once at startup from PostgreSQL seed data.
 type EntityPool struct {
-	Users       []UserProfile
-	DeviceIDs   []string
-	IPAddresses []string
-	MerchantIDs []string
+	Users           []UserProfile
+	UserDeviceMap   map[string]string
+	UserIPMap       map[string]string
+	DeviceIDs       []string
+	IPAddresses     []string
+	MerchantIDs     []string
 }
 
 // UserProfile is a minimal projection used by the generator.

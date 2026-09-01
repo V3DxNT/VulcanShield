@@ -22,3 +22,8 @@ Make sure the entire functionality working fine
 ________________
 
 The Graph issue is not resolved
+
+________
+
+I have decided that, instead of ollama's container in docker, 
+I shall download the ollama in my system and then after the work is done I shall delete it, but I need to run the ollama for the proper working of the application, so with that the ollama service can also be removed and also that the image can be deleted

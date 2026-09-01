@@ -14,6 +14,16 @@ var testPool = &models.EntityPool{
 		{UserID: "C1002", TypicalMinAmount: 5.00, TypicalMaxAmount: 100.00, TrustScore: 60},
 		{UserID: "C1003", TypicalMinAmount: 50.00, TypicalMaxAmount: 1500.00, TrustScore: 30},
 	},
+	UserDeviceMap: map[string]string{
+		"C1001": "D204",
+		"C1002": "D205",
+		"C1003": "D206",
+	},
+	UserIPMap: map[string]string{
+		"C1001": "IP-17",
+		"C1002": "IP-18",
+		"C1003": "IP-19",
+	},
 	DeviceIDs:   []string{"D204", "D205", "D206"},
 	IPAddresses: []string{"IP-17", "IP-18", "IP-19"},
 	MerchantIDs: []string{"M301", "M302", "M303"},
@@ -87,6 +97,35 @@ func TestGeneratedTimestampsProgressInRealTime(t *testing.T) {
 			t.Fatalf("timestamp idx %d did not advance meaningfully: %s -> %s", i, prev.Format(time.RFC3339Nano), tx.Timestamp.Format(time.RFC3339Nano))
 		}
 		prev = tx.Timestamp
+	}
+}
+
+// TestNormalScenarioRespectsSeededUserAssociations verifies that each user keeps
+// the device and IP assigned in the seeded customer profile instead of cycling
+// across a shared bucket by index.
+func TestNormalScenarioRespectsSeededUserAssociations(t *testing.T) {
+	gen := NewBaseGenerator(42, testPool, &scenarios.NormalScenario{})
+
+	first := gen.Next(0, 0)
+	if first.UserID != "C1001" {
+		t.Fatalf("expected first user C1001, got %s", first.UserID)
+	}
+	if first.DeviceID != "D204" {
+		t.Fatalf("expected seeded device D204 for C1001, got %s", first.DeviceID)
+	}
+	if first.IPAddress != "IP-17" {
+		t.Fatalf("expected seeded IP IP-17 for C1001, got %s", first.IPAddress)
+	}
+
+	third := gen.Next(2, 2)
+	if third.UserID != "C1003" {
+		t.Fatalf("expected third user C1003, got %s", third.UserID)
+	}
+	if third.DeviceID != "D206" {
+		t.Fatalf("expected seeded device D206 for C1003, got %s", third.DeviceID)
+	}
+	if third.IPAddress != "IP-19" {
+		t.Fatalf("expected seeded IP IP-19 for C1003, got %s", third.IPAddress)
 	}
 }
 

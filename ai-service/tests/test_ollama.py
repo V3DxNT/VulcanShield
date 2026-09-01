@@ -1,6 +1,6 @@
 import unittest
 
-from app.ollama import build_decision_summary, detect_best_ollama_model
+from app.ollama import build_decision_summary, detect_best_ollama_model, resolve_llm_provider
 
 
 class OllamaSummaryTests(unittest.TestCase):
@@ -31,6 +31,11 @@ class OllamaSummaryTests(unittest.TestCase):
             'mistral:latest',
         ]
         self.assertEqual(detect_best_ollama_model(models), 'qwen2.5:7b-instruct')
+
+    def test_resolve_llm_provider_uses_available_ollama_model(self):
+        provider = resolve_llm_provider(True, available_models=['llama3.2:3b', 'qwen2.5:7b-instruct'])
+        self.assertEqual(provider['provider'], 'ollama')
+        self.assertEqual(provider['model'], 'qwen2.5:7b-instruct')
 
 
 if __name__ == '__main__':

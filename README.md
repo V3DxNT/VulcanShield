@@ -46,9 +46,9 @@ cp .env.example .env
 ```
 
 ### Infrastructure Management (Phase 1)
-Start all core infrastructure services (PostgreSQL + pgvector, Redis, Kafka, Ollama):
+Start the services that do not require Ollama in Docker:
 ```bash
-docker compose up -d
+docker compose up -d postgres redis zookeeper kafka backend ml-service ai-service frontend
 ```
 
 Check infrastructure health status:
@@ -61,10 +61,32 @@ Stop infrastructure services:
 docker compose down
 ```
 
-### Local LLM Model Setup (Ollama)
-The Ollama container runs locally on port `11434`. To pull the target instruction model when ready for AI investigation:
+### Local LLM Model Setup (host-installed Ollama)
+Use a native Ollama install on your machine rather than the Docker Ollama container. The app will talk to the local service on port `11434`.
+
+Install Ollama on macOS:
 ```bash
-docker exec -it vulcanshield-ollama ollama pull qwen2.5:7b-instruct
+brew install ollama
+```
+
+Start the local service:
+```bash
+ollama serve
+```
+
+Pull the model once on the host:
+```bash
+ollama pull qwen2.5:7b-instruct
+```
+
+If the app is running inside Docker, point it to the host service with:
+```bash
+OLLAMA_URL=http://host.docker.internal:11434
+```
+
+When running the AI service directly on your machine, use:
+```bash
+OLLAMA_URL=http://localhost:11434
 ```
 
 ---

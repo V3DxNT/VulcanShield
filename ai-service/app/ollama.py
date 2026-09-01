@@ -7,7 +7,15 @@ from app.schemas import InvestigationResponse, EvidenceItem, SimilarCase
 
 logger = logging.getLogger(__name__)
 
-OLLAMA_URL = os.getenv("OLLAMA_URL", "http://ollama:11434")
+
+def _default_ollama_url() -> str:
+    """Prefer host-local Ollama by default, but allow Dockerized services to reach the host via host.docker.internal."""
+    if os.path.exists("/.dockerenv"):
+        return "http://host.docker.internal:11434"
+    return "http://localhost:11434"
+
+
+OLLAMA_URL = os.getenv("OLLAMA_URL") or os.getenv("OLLAMA_HOST") or _default_ollama_url()
 GROQ_API_KEY = (os.getenv("GROQ_API_KEY") or "").strip()
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 DEFAULT_LLM_PROVIDER = (os.getenv("LLM_PROVIDER") or "ollama").lower()
@@ -48,15 +56,21 @@ async def fetch_available_ollama_models() -> List[str]:
         return []
 
 
-def resolve_llm_provider(ollama_available: bool, groq_api_key: Optional[str] = None, preferred_provider: Optional[str] = None) -> Dict[str, str]:
+def resolve_llm_provider(
+    ollama_available: bool,
+    groq_api_key: Optional[str] = None,
+    preferred_provider: Optional[str] = None,
+    available_models: Optional[List[str]] = None,
+) -> Dict[str, str]:
     """Choose the active LLM provider, preferring Ollama locally and allowing Groq as a fallback when configured."""
     override = (preferred_provider or DEFAULT_LLM_PROVIDER or "ollama").lower()
     key = (groq_api_key or GROQ_API_KEY or "").strip()
+    available = [m.strip() for m in (available_models or []) if isinstance(m, str) and m.strip()]
 
     if override == "groq" and key:
         return {"provider": "groq", "model": GROQ_MODEL}
     if override == "ollama" and ollama_available:
-        return {"provider": "ollama", "model": detect_best_ollama_model([])}
+        return {"provider": "ollama", "model": detect_best_ollama_model(available)}
     if key:
         return {"provider": "groq", "model": GROQ_MODEL}
     return {"provider": "rule-based", "model": "rule-based-evidence-fallback"}
@@ -299,7 +313,8 @@ async def generate_llm_investigation(
         "matched_documents": [
             f"last_transaction_status={customer_history.get('last_transaction_status') or 'unknown'}",
             f"previous_fraud_count={customer_history.get('previous_fraud_count', 0)}",
-            f"typical_max_amount={customer_history.get('typical_max_amount', 'unknown')}",
+            f"historical_max_amount={customer_history.get('typical_max_amount', 'unknown')}",
+            f"recent_tx_count={len(customer_history.get('recent_transactions', []))}",
         ],
         "relevance_score": 0.94,
     }]
@@ -310,6 +325,13 @@ async def generate_llm_investigation(
             "matched_documents": [case["title"] for case in similar_cases[:2]],
             "relevance_score": max((case.get("relevance_score", 0.0) for case in similar_cases[:2]), default=0.0),
         })
+    elif similar_cases is not None:
+        retrieval_trace.append({
+            "source": "rag",
+            "query": f"{req.user_id} {req.amount} abnormal transaction pattern comparison",
+            "matched_documents": ["No stored RAG match; deterministic policy evidence used instead."],
+            "relevance_score": 0.0,
+        })
 
     reasoning_trace = [
         f"Initial risk score = {risk_progression['initial']}/100 from the ML model and velocity signals.",
@@ -319,11 +341,16 @@ async def generate_llm_investigation(
 
     inv_id = f"INV-{req.transaction_id}"
     llm_model = "rule-based-evidence-fallback"
+    confidence = 0.58 + min(0.2, 0.05 * max(0, len(evidence))) + (0.1 if similar_cases else 0.0) + (0.08 if decision in {"CHALLENGE", "BLOCK"} else 0.0)
+    confidence = round(min(0.97, confidence), 2)
 
     try:
         available_models = await fetch_available_ollama_models()
         ollama_available = bool(available_models)
-        provider_config = resolve_llm_provider(ollama_available=ollama_available)
+        provider_config = resolve_llm_provider(
+            ollama_available=ollama_available,
+            available_models=available_models,
+        )
         provider = provider_config["provider"]
         llm_model = provider_config["model"]
 
@@ -412,7 +439,7 @@ async def generate_llm_investigation(
         evidence=evidence,
         similar_cases=cases,
         recommended_action=recommended_action,
-        confidence=0.91,
+        confidence=confidence,
         llm_model=llm_model,
         initial_risk_score=risk_progression["initial"],
         final_risk_score=risk_progression["final"],

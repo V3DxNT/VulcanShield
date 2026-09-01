@@ -22,16 +22,16 @@ func (n *NormalScenario) Next(idx int, rng *rand.Rand, pool *models.EntityPool, 
 	user := pool.Users[userIdx]
 
 	amount := randAmount(rng, user.TypicalMinAmount, user.TypicalMaxAmount)
-	deviceIdx := userIdx % len(pool.DeviceIDs)
-	ipIdx := userIdx % len(pool.IPAddresses)
+	deviceID := userDeviceID(pool, user)
+	ipAddr := userIP(pool, user)
 	merchantIdx := (idx + 2 + rng.Intn(len(pool.MerchantIDs))) % len(pool.MerchantIDs)
 	now := progressiveTimestamp(idx, rng)
 
 	return models.Transaction{
 		TransactionID: fmt.Sprintf("TX-%d-%05d", rng.Int63n(9000)+1000, idx),
 		UserID:        user.UserID,
-		DeviceID:      pool.DeviceIDs[deviceIdx],
-		IPAddress:     pool.IPAddresses[ipIdx],
+		DeviceID:      deviceID,
+		IPAddress:     ipAddr,
 		MerchantID:    pool.MerchantIDs[merchantIdx],
 		Amount:        amount,
 		Currency:      "INR",

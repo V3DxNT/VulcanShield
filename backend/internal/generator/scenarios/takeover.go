@@ -21,8 +21,14 @@ func (a *AccountTakeoverScenario) Next(idx int, rng *rand.Rand, pool *models.Ent
 	}
 	user := pool.Users[userIdx]
 
-	deviceID := pool.DeviceIDs[userIdx%len(pool.DeviceIDs)]
-	ipAddr := pool.IPAddresses[userIdx%len(pool.IPAddresses)]
+	deviceID := userDeviceID(pool, user)
+	ipAddr := userIP(pool, user)
+	if len(pool.DeviceIDs) > 0 {
+		deviceID = pool.DeviceIDs[len(pool.DeviceIDs)-1]
+	}
+	if len(pool.IPAddresses) > 0 {
+		ipAddr = pool.IPAddresses[len(pool.IPAddresses)-1]
+	}
 	merchantID := pool.MerchantIDs[(idx+2)%len(pool.MerchantIDs)]
 
 	multiplier := 5.0 + rng.Float64()*10.0

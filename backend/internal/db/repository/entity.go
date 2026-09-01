@@ -50,6 +50,42 @@ func (r *pgxEntityRepository) LoadPool(ctx context.Context) (*models.EntityPool,
 		return nil, err
 	}
 
+	// Load user-specific device/IP mappings from the synthetic seed data.
+	ep.UserDeviceMap = map[string]string{}
+	ep.UserIPMap = map[string]string{}
+
+	deviceRows, err := r.pool.Query(ctx, `SELECT user_id, device_id FROM user_devices ORDER BY user_id, device_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer deviceRows.Close()
+	for deviceRows.Next() {
+		var userID, deviceID string
+		if err := deviceRows.Scan(&userID, &deviceID); err != nil {
+			return nil, err
+		}
+		ep.UserDeviceMap[userID] = deviceID
+	}
+	if err := deviceRows.Err(); err != nil {
+		return nil, err
+	}
+
+	ipRows, err := r.pool.Query(ctx, `SELECT user_id, ip_address FROM user_ips ORDER BY user_id, ip_address`)
+	if err != nil {
+		return nil, err
+	}
+	defer ipRows.Close()
+	for ipRows.Next() {
+		var userID, ipAddress string
+		if err := ipRows.Scan(&userID, &ipAddress); err != nil {
+			return nil, err
+		}
+		ep.UserIPMap[userID] = ipAddress
+	}
+	if err := ipRows.Err(); err != nil {
+		return nil, err
+	}
+
 	// Load device IDs
 	devRows, err := r.pool.Query(ctx, `SELECT device_id FROM devices ORDER BY device_id`)
 	if err != nil {
@@ -68,19 +104,19 @@ func (r *pgxEntityRepository) LoadPool(ctx context.Context) (*models.EntityPool,
 	}
 
 	// Load IP addresses
-	ipRows, err := r.pool.Query(ctx, `SELECT ip_address FROM ips ORDER BY ip_address`)
+	ipAddrRows, err := r.pool.Query(ctx, `SELECT ip_address FROM ips ORDER BY ip_address`)
 	if err != nil {
 		return nil, err
 	}
-	defer ipRows.Close()
-	for ipRows.Next() {
+	defer ipAddrRows.Close()
+	for ipAddrRows.Next() {
 		var ip string
-		if err := ipRows.Scan(&ip); err != nil {
+		if err := ipAddrRows.Scan(&ip); err != nil {
 			return nil, err
 		}
 		ep.IPAddresses = append(ep.IPAddresses, ip)
 	}
-	if err := ipRows.Err(); err != nil {
+	if err := ipAddrRows.Err(); err != nil {
 		return nil, err
 	}
 

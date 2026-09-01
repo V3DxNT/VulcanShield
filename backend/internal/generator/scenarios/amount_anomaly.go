@@ -25,8 +25,8 @@ func (a *AmountAnomalyScenario) Next(idx int, rng *rand.Rand, pool *models.Entit
 	baseAmount := user.TypicalMaxAmount * multiplier
 	amount := randAmount(rng, baseAmount*0.9, baseAmount)
 
-	deviceID := pool.DeviceIDs[userIdx%len(pool.DeviceIDs)]
-	ipAddr := pool.IPAddresses[userIdx%len(pool.IPAddresses)]
+	deviceID := userDeviceID(pool, user)
+	ipAddr := userIP(pool, user)
 	merchantID := pool.MerchantIDs[len(pool.MerchantIDs)-1]
 	now := progressiveTimestamp(idx, rng)
 
