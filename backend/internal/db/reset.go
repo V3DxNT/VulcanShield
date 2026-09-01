@@ -16,6 +16,7 @@ var runtimeResetTables = []string{
 	"risk_assessments",
 	"transactions",
 	"scenarios",
+	"fraud_relationships",
 }
 
 // DemoResetSQL returns the SQL used to wipe runtime transaction/demo state without

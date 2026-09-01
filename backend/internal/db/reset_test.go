@@ -5,11 +5,28 @@ import (
 	"testing"
 )
 
+func containsTableName(sql, name string) bool {
+	return strings.Contains(sql, name+",") ||
+		strings.Contains(sql, ", "+name) ||
+		strings.Contains(sql, " "+name+" RESTART") ||
+		strings.Contains(sql, "TRUNCATE TABLE "+name)
+}
+
 func TestDemoResetSQL_LeavesSeedDataIntact(t *testing.T) {
 	sql := DemoResetSQL()
 
-	for _, keep := range runtimeResetTables {
-		if !strings.Contains(sql, keep) {
+	for _, keep := range []string{
+		"audit_events",
+		"investigation_evidence",
+		"investigations",
+		"otp_challenges",
+		"policy_decisions",
+		"risk_assessments",
+		"transactions",
+		"scenarios",
+		"fraud_relationships",
+	} {
+		if !containsTableName(sql, keep) {
 			t.Fatalf("demo reset SQL missing table %q: %s", keep, sql)
 		}
 	}
@@ -21,11 +38,10 @@ func TestDemoResetSQL_LeavesSeedDataIntact(t *testing.T) {
 		"merchants",
 		"user_devices",
 		"user_ips",
-		"fraud_relationships",
 		"rag_documents",
 		"embedding_records",
 	} {
-		if strings.Contains(sql, drop) {
+		if containsTableName(sql, drop) {
 			t.Fatalf("demo reset SQL should not clear seed table %q: %s", drop, sql)
 		}
 	}

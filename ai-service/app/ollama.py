@@ -24,11 +24,13 @@ DEFAULT_LLM_PROVIDER = (os.getenv("LLM_PROVIDER") or "ollama").lower()
 def detect_best_ollama_model(models: Optional[List[str]]) -> str:
     """Choose a working Ollama model from the installed list."""
     preferred = [
+        "llama3.1:8b",
+        "llama-3.1:8b",
+        "llama3.1",
+        "llama3.2",
         "qwen2.5:7b-instruct",
         "qwen2.5:latest",
         "qwen2.5",
-        "llama3.2",
-        "llama3.1",
         "mistral",
         "mistral:latest",
         "deepseek-r1",

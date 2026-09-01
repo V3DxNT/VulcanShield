@@ -87,8 +87,12 @@ export default function ScenarioControl() {
     <div className="bg-white rounded-2xl border border-[#d2d2d7] shadow-sm p-6 mb-6">
       <div className="flex items-center justify-between mb-5">
         <div>
+          <div className="flex flex-wrap items-center gap-2 mb-2">
+            <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-blue-700">Fresh reset</span>
+            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-700">Synthetic baseline</span>
+          </div>
           <h2 className="font-semibold text-[#1d1d1f] text-base">Scenario Simulator</h2>
-          <p className="text-xs text-[#6e6e73] mt-0.5">Synthetic demo — how risk layers cut chargebacks (missed fraud) without killing conversion (false declines)</p>
+          <p className="text-xs text-[#6e6e73] mt-0.5">Fresh demo data — establish a clean baseline before replaying risk conditions.</p>
         </div>
         {isRunning ? (
           <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-full">
