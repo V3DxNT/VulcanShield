@@ -50,6 +50,7 @@ export default function AIInvestigationModal({ transactionID, onClose }: AIInves
   const [txDetail, setTxDetail] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [expandedModel, setExpandedModel] = useState<ModelKey | null>('ml');
+  const [showPrompt, setShowPrompt] = useState(false);
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -87,6 +88,25 @@ export default function AIInvestigationModal({ transactionID, onClose }: AIInves
   const retrievalTrace = report?.retrieval_trace ?? [];
   const reasoningTrace = report?.reasoning_trace ?? [];
 
+  const currentFraudProbability = Number(txDetail?.fraud_probability ?? report?.fraud_probability ?? 0);
+  const currentAnomalyScore = Number(txDetail?.anomaly_score ?? report?.anomaly_score ?? 0);
+  const currentAmount = Number(txDetail?.amount ?? 0);
+  const customerHistoryTrace = retrievalTrace.find((item: any) => item.source === 'customer_history');
+  const customerHistoryDocs = customerHistoryTrace?.matched_documents ?? [];
+  const parseValue = (key: string) => {
+    const match = customerHistoryDocs.find((doc: string) => doc?.startsWith(`${key}=`));
+    if (!match) return null;
+    const value = match.split('=')[1];
+    if (value === 'unknown' || value === undefined || value === null) return null;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : value;
+  };
+  const historicalMaxAmount = parseValue('historical_max_amount');
+  const recentTxCount = parseValue('recent_tx_count');
+  const lastTransactionStatus = (customerHistoryDocs.find((doc: string) => doc?.startsWith('last_transaction_status=')) ?? '').split('=')[1] ?? 'unknown';
+  const previousFraudCount = parseValue('previous_fraud_count');
+  const amountRatio = historicalMaxAmount && Number(historicalMaxAmount) > 0 ? currentAmount / Number(historicalMaxAmount) : null;
+
   const modelCards = [
     {
       key: 'ml' as const,
@@ -114,11 +134,16 @@ export default function AIInvestigationModal({ transactionID, onClose }: AIInves
     },
   ];
 
-  const xgBoostExplanation =
-    'For TX-ATO-2499-00004, the amount was far above the customer’s historical max, the device was risky, the IP was elevated, and the trust score was low. In the synthetic demo model, the feature combination pushed the positive-class probability to 0.7804, which is 78.04% fraud probability. The exact model logic is: amount_ratio = amount / (typical_max_amount + 1e-5), then fraud_probability = XGBClassifier.predict_proba(X)[0][1].';
+  const xgBoostExplanation = [
+    `For this transaction, the live model receives the customer-history context before scoring: amount = ₹${currentAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}; historical max amount = ${historicalMaxAmount !== null ? `₹${Number(historicalMaxAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'customer profile available in the retrieval step'}; recent transaction retrieval count = ${recentTxCount ?? 'not exposed in this UI'}; last transaction status = ${lastTransactionStatus}.`,
+    `The model computes amount_ratio = amount / (typical_max_amount + 1e-5). ${amountRatio !== null ? `With the live values, amount_ratio = ${currentAmount.toFixed(2)} / (${Number(historicalMaxAmount).toFixed(2)} + 1e-5) ≈ ${amountRatio.toFixed(2)}.` : 'That ratio is derived from the historical profile pulled for this customer before the model runs.'}`,
+    `The XGBoost probability is then fraud_probability = XGBClassifier.predict_proba(X)[0][1]. On this run the model produced ${currentFraudProbability.toFixed(4)} → ${(currentFraudProbability * 100).toFixed(1)}% fraud probability, which is why the transaction was scored above the challenge threshold.`,
+  ].join(' ');
 
-  const isolationExplanation =
-    'For TX-ATO-2499-00004, the transaction sat far from the learned normal behavior cluster because the amount spiked outside the customer pattern and the device/IP profile was abnormal. Using the Isolation Forest transform raw_iso_score = iso.score_samples(X)[0] and anomaly_score = clip(1 - (raw_iso_score + 0.8) / 0.6, 0.0, 1.0), the model mapped this outlier to 0.9279, or 92.79% anomaly severity.';
+  const isolationExplanation = [
+    `The Isolation Forest score is built from the same feature vector: raw_iso_score = iso.score_samples(X)[0] and anomaly_score = clip(1 - (raw_iso_score + 0.8) / 0.6, 0.0, 1.0).`,
+    `This transaction sits outside the learned normal cluster because the amount and recent customer pattern differ from the retrieved history. On this run, the model produced an anomaly score of ${currentAnomalyScore.toFixed(4)} → ${(currentAnomalyScore * 100).toFixed(1)}% anomaly severity.`,
+  ].join(' ');
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/30 p-4 backdrop-blur-sm">
@@ -212,9 +237,18 @@ export default function AIInvestigationModal({ transactionID, onClose }: AIInves
                   <div className="flex h-5 w-5 items-center justify-center rounded bg-[#0071e3] text-xs font-bold text-white">AI</div>
                   <p className="text-xs font-medium text-[#0071e3]">Analyst Summary</p>
                 </div>
-                <button onClick={() => window.location.href = `/network?user=${encodeURIComponent(userID)}`} className="rounded-lg border border-[#0071e3]/30 bg-white px-3 py-1.5 text-xs font-medium text-[#0071e3] hover:bg-blue-50">View user network →</button>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setShowPrompt(v => !v)} className="rounded-lg border border-[#0071e3]/30 bg-white px-3 py-1.5 text-xs font-medium text-[#0071e3] hover:bg-blue-50">{showPrompt ? 'Hide prompt' : 'Show prompt'}</button>
+                  <button onClick={() => window.location.href = `/network?user=${encodeURIComponent(userID)}`} className="rounded-lg border border-[#0071e3]/30 bg-white px-3 py-1.5 text-xs font-medium text-[#0071e3] hover:bg-blue-50">View user network →</button>
+                </div>
               </div>
               <p className="whitespace-pre-line text-sm leading-relaxed text-[#1d1d1f]">{report.summary}</p>
+              {showPrompt && report.llm_prompt && (
+                <div className="mt-4 rounded-xl border border-[#d2d2d7] bg-white p-3">
+                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#6e6e73]">LLM Prompt</p>
+                  <pre className="whitespace-pre-wrap break-words font-mono text-[11px] leading-6 text-[#1d1d1f]">{report.llm_prompt}</pre>
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -249,11 +283,16 @@ export default function AIInvestigationModal({ transactionID, onClose }: AIInves
                 {expandedModel === 'xgboost' && (
                   <div className="space-y-3">
                     <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#6e6e73]">Why TX-ATO-2499-00004 got 78.04%</p>
-                    <p className="text-sm leading-relaxed text-[#1d1d1f]">The fraud probability is the positive-class output of the trained XGBoost model:</p>
+                    <p className="text-sm leading-relaxed text-[#1d1d1f]">The fraud probability is the positive-class output of the trained XGBoost model and it is computed from the current transaction plus the customer-history context fetched before the score is generated.</p>
                     <div className="rounded-xl border border-[#d2d2d7] bg-white p-3">
                       <p className="whitespace-pre-wrap font-mono text-xs leading-6 text-[#1d1d1f]">amount_ratio = amount / (typical_max_amount + 1e-5)
-fraud_prob_raw = 0.40·I(amount_ratio &gt; 3.0) + 0.35·I(user_tx_count_60s &gt; 5) + 0.30·I(is_emulator) + 0.20·I(is_vpn) + 0.25·I(trust_score &lt; 40)
-fraud_probability = XGBClassifier.predict_proba(X)[0][1]</p>
+fraud_probability = XGBClassifier.predict_proba(X)[0][1]
+
+example live values:
+amount = ₹{currentAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+historical max = {historicalMaxAmount !== null ? `₹${Number(historicalMaxAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'fetched from customer history'}
+amount_ratio = {amountRatio !== null ? amountRatio.toFixed(2) : 'derived from recent customer profile'}
+probability = {currentFraudProbability.toFixed(4)} → {(currentFraudProbability * 100).toFixed(1)}%</p>
                     </div>
                     <p className="text-sm leading-relaxed text-[#1d1d1f]">{xgBoostExplanation}</p>
                   </div>
@@ -262,10 +301,13 @@ fraud_probability = XGBClassifier.predict_proba(X)[0][1]</p>
                 {expandedModel === 'isolation' && (
                   <div className="space-y-3">
                     <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#6e6e73]">Why the Isolation Forest score was high</p>
-                    <p className="text-sm leading-relaxed text-[#1d1d1f]">Isolation Forest measures how far the transaction sits from the learned normal cluster.</p>
+                    <p className="text-sm leading-relaxed text-[#1d1d1f]">Isolation Forest measures how far this transaction sits from the learned normal cluster, using the same customer-history context plus the current device and IP signals.</p>
                     <div className="rounded-xl border border-[#d2d2d7] bg-white p-3">
                       <p className="whitespace-pre-wrap font-mono text-xs leading-6 text-[#1d1d1f]">raw_iso_score = iso.score_samples(X)[0]
-anomaly_score = clip(1 - (raw_iso_score + 0.8) / 0.6, 0.0, 1.0)</p>
+anomaly_score = clip(1 - (raw_iso_score + 0.8) / 0.6, 0.0, 1.0)
+
+live result:
+anomaly_score = {currentAnomalyScore.toFixed(4)} → {(currentAnomalyScore * 100).toFixed(1)}%</p>
                     </div>
                     <p className="text-sm leading-relaxed text-[#1d1d1f]">{isolationExplanation}</p>
                   </div>
@@ -276,7 +318,7 @@ anomaly_score = clip(1 - (raw_iso_score + 0.8) / 0.6, 0.0, 1.0)</p>
             <div className="rounded-xl border border-[#d2d2d7] bg-[#f5f5f7] p-4">
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#6e6e73]">RAG use case</p>
               <p className="mt-2 text-sm leading-relaxed text-[#1d1d1f]">
-                RAG is used here as investigation support, not as the payment decision-maker. It retrieves historical fraud-pattern guidance and playbooks from the knowledge base so the analyst can explain why this case resembles a takeover or velocity pattern. The actual authorization outcome remains with the deterministic policy engine and the structured database signals.
+                In this project, the practical “RAG” step is the recent customer-history retrieval: the AI service fetches the user’s recent transactions, previous fraud count, last transaction status, and historical max amount from the structured database, then passes that context into the ML and investigation explanation. This is the real context layer that explains the score; it is not the final payment decision. The actual authorization outcome still comes from the deterministic policy engine using the ML output and the fixed policy thresholds.
               </p>
             </div>
 

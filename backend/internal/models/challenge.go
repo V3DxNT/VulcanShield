@@ -11,13 +11,13 @@ const (
 	ChallengeFailed   ChallengeStatus = "FAILED"
 )
 
-// OTPChallenge represents a simulated step-up OTP challenge.
-// Security invariant: Plaintext OTP is NEVER stored in PostgreSQL.
+
+
 type OTPChallenge struct {
 	ChallengeID   string          `json:"challenge_id"`
 	TransactionID string          `json:"transaction_id"`
-	OTPCodeHash   string          `json:"-"`                  // Not exposed in public JSON
-	DemoOTP       string          `json:"demo_otp,omitempty"` // Included only in Redis state for demo UI
+	OTPCodeHash   string          `json:"-"`                  
+	DemoOTP       string          `json:"demo_otp,omitempty"` 
 	Status        ChallengeStatus `json:"status"`
 	Attempts      int             `json:"attempts"`
 	MaxAttempts   int             `json:"max_attempts"`

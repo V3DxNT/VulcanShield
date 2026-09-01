@@ -10,8 +10,8 @@ async def get_similar_fraud_cases(pool: asyncpg.Pool, query_text: str) -> List[D
     """
     embedding: Optional[List[float]] = await embed_query(query_text)
     async with pool.acquire() as conn:
-        # Metadata/lexical relevance takes precedence for the seeded knowledge
-        # base; semantic retrieval fills gaps when a query has no exact signal.
+                                                                              
+                                                                               
         rows = await conn.fetch(
             """
             SELECT document_id, title, category, content,

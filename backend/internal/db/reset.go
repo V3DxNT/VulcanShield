@@ -19,14 +19,14 @@ var runtimeResetTables = []string{
 	"fraud_relationships",
 }
 
-// DemoResetSQL returns the SQL used to wipe runtime transaction/demo state without
-// deleting the seeded customer, device, IP, merchant, or graph reference data.
+
+
 func DemoResetSQL() string {
 	return "TRUNCATE TABLE " + strings.Join(runtimeResetTables, ", ") + " RESTART IDENTITY CASCADE;"
 }
 
-// ResetRuntimeState removes operational state from the demo database while preserving
-// the static seed entities that power customer/device/IP analysis.
+
+
 func ResetRuntimeState(ctx context.Context, pool *pgxpool.Pool, flushRedis func(context.Context) error) error {
 	if pool == nil {
 		return nil

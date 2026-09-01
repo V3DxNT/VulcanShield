@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-// mockProber implements Prober for unit tests.
+
 type mockProber struct {
 	err error
 }

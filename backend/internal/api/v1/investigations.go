@@ -16,7 +16,7 @@ type InvestigationHandlers struct {
 	AIClient   *aiclient.Client
 }
 
-// Investigate handles GET /api/v1/investigations/{transaction_id}.
+
 func (h *InvestigationHandlers) Investigate(w http.ResponseWriter, r *http.Request) {
 	txID := r.PathValue("transaction_id")
 	if txID == "" {

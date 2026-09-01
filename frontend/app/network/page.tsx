@@ -132,7 +132,7 @@ export default function NetworkPage() {
           </button>
         </div>
 
-        {/* Stats Row */}
+        {}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <StatCard label="Total Entities" value={nodes.length} sub="Unique graph nodes" />
           <StatCard label="Users" value={userNodes.length} sub="Monitored accounts" color="text-[#0071e3]" bg="bg-blue-50" />
@@ -153,7 +153,7 @@ export default function NetworkPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Node List */}
+          {}
           <div className="md:col-span-1 bg-white rounded-2xl border border-[#d2d2d7] shadow-sm">
             <div className="px-5 py-4 border-b border-[#e8e8ed]">
               <h2 className="font-semibold text-sm text-[#1d1d1f]">Select a User</h2>

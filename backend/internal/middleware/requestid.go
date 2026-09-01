@@ -9,13 +9,13 @@ import (
 
 type requestIDKey struct{}
 
-// RequestIDKey is exported for handlers that need to read the request ID from context.
+
 var RequestIDKey = requestIDKey{}
 
-// RequestID is middleware that ensures every request has an X-Request-ID header.
-// If the incoming request already carries X-Request-ID, that value is preserved.
-// Otherwise a new random 16-byte hex ID is generated.
-// The ID is echoed on the response and stored in the request context.
+
+
+
+
 func RequestID() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -30,7 +30,7 @@ func RequestID() func(http.Handler) http.Handler {
 	}
 }
 
-// GetRequestID retrieves the request ID from a context.
+
 func GetRequestID(ctx context.Context) string {
 	if id, ok := ctx.Value(RequestIDKey).(string); ok {
 		return id

@@ -22,10 +22,10 @@ import (
 	appws "github.com/vulcanshield/backend/internal/websocket"
 )
 
-// ErrScenarioRunning is returned when Start is called while a scenario is already running.
+
 var ErrScenarioRunning = errors.New("a scenario is already running")
 
-// Engine manages the lifecycle of scenario generation runs and orchestrates the risk pipeline.
+
 type Engine struct {
 	mu             sync.Mutex
 	active         *models.ScenarioRun
@@ -50,7 +50,7 @@ type Engine struct {
 	wsHub          *appws.Hub
 }
 
-// NewEngine creates an Engine ready to accept Start calls.
+
 func NewEngine(
 	log *slog.Logger,
 	txRepo repository.TransactionRepository,
@@ -88,8 +88,8 @@ func NewEngine(
 	}
 }
 
-// Start begins a new scenario generation run. Returns ErrScenarioRunning (HTTP 409)
-// if a scenario is already active. The run executes in a background goroutine.
+
+
 func (e *Engine) Start(ctx context.Context, req models.ScenarioStartRequest) (*models.ScenarioRun, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -98,7 +98,7 @@ func (e *Engine) Start(ctx context.Context, req models.ScenarioStartRequest) (*m
 		return nil, ErrScenarioRunning
 	}
 
-	// Apply defaults
+	
 	if req.Transactions <= 0 {
 		req.Transactions = 100
 	}
@@ -109,7 +109,7 @@ func (e *Engine) Start(ctx context.Context, req models.ScenarioStartRequest) (*m
 		req.Seed = 42
 	}
 
-	// Validate scenario type
+	
 	if !validScenario(req.Scenario) {
 		req.Scenario = models.ScenarioNormal
 	}
@@ -137,8 +137,8 @@ func (e *Engine) Start(ctx context.Context, req models.ScenarioStartRequest) (*m
 	return run, nil
 }
 
-// Stop halts the active scenario and blocks until the goroutine exits.
-// No further transactions are produced after Stop returns.
+
+
 func (e *Engine) Stop(ctx context.Context) (*models.ScenarioRun, error) {
 	e.mu.Lock()
 	if e.active == nil || e.active.Status != models.ScenarioRunning {
@@ -150,25 +150,25 @@ func (e *Engine) Stop(ctx context.Context) (*models.ScenarioRun, error) {
 	e.mu.Unlock()
 
 	cancel()
-	<-done // wait until goroutine exits (guaranteed stop)
+	<-done 
 
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return e.active, nil
 }
 
-// GetStatus returns the current scenario run, or nil if no run has occurred.
+
 func (e *Engine) GetStatus() *models.ScenarioRun {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return e.active
 }
 
-// runLoop is the background goroutine executing the scenario.
+
 func (e *Engine) runLoop(ctx context.Context, run *models.ScenarioRun, req models.ScenarioStartRequest) {
 	defer close(e.done)
 
-	// Load entity pool
+	
 	pool, err := e.entityRepo.LoadPool(ctx)
 	if err != nil {
 		e.log.Error("generator: failed to load entity pool", "error", err, "scenario_id", run.ScenarioID)
@@ -212,21 +212,21 @@ func (e *Engine) runLoop(ctx context.Context, run *models.ScenarioRun, req model
 		case <-ticker.C:
 			tx := gen.Next(generated, targetUserIndex)
 
-			// ── Phase 5: Redis Velocity Signals ─────────────────────────────
+			
 			if e.velocityEngine != nil {
 				_ = e.velocityEngine.RecordTransaction(ctx, &tx)
 			}
 			velocitySignals, _ := e.velocityEngine.GetVelocitySignals(ctx, &tx)
 
-			// Determine emulator/vpn flags based on seed entity index heuristics
+			
 			isEmulator := tx.DeviceID == pool.DeviceIDs[len(pool.DeviceIDs)-1]
 			isVPN := tx.IPAddress == pool.IPAddresses[len(pool.IPAddresses)-1]
 
-			// ── Phase 7: Feature Pipeline ───────────────────────────────────
+			
 			userProf := userMap[tx.UserID]
 			predictReq := e.featureBuilder.BuildVector(&tx, userProf, velocitySignals, isEmulator, isVPN)
 
-			// ── Phase 6: ML Service Prediction ──────────────────────────────
+			
 			var mlResp *mlclient.PredictResponse
 			if e.mlClient != nil {
 				var err error
@@ -236,10 +236,10 @@ func (e *Engine) runLoop(ctx context.Context, run *models.ScenarioRun, req model
 				}
 			}
 
-			// ── Phase 8: Risk Scoring (0–100) ───────────────────────────────
+			
 			riskAssessment := e.riskEvaluator.Evaluate(&tx, mlResp, velocitySignals)
 
-			// ── Phase 9: Policy Engine (ALLOW / CHALLENGE / BLOCK) ─────────
+			
 			var userThresholds *models.User
 			if userProf != nil {
 				userThresholds = &models.User{
@@ -250,7 +250,7 @@ func (e *Engine) runLoop(ctx context.Context, run *models.ScenarioRun, req model
 			policyDecision, updatedStatus := e.policyEngine.Evaluate(&tx, riskAssessment, userProf, userThresholds)
 			tx.Status = updatedStatus
 
-			// 1. Persist Transaction to PostgreSQL (authoritative store)
+			
 			if err := e.txRepo.Create(ctx, &tx); err != nil {
 				if ctx.Err() != nil {
 					e.finalizeWithCount(run, models.ScenarioStopped, generated)
@@ -262,7 +262,7 @@ func (e *Engine) runLoop(ctx context.Context, run *models.ScenarioRun, req model
 				return
 			}
 
-			// 2. Persist Risk Assessment & Policy Decision to PostgreSQL
+			
 			if e.riskRepo != nil && riskAssessment != nil {
 				if err := e.riskRepo.Create(ctx, riskAssessment); err != nil {
 					e.log.Warn("generator: failed to persist risk assessment", "error", err, "transaction_id", tx.TransactionID)
@@ -274,7 +274,7 @@ func (e *Engine) runLoop(ctx context.Context, run *models.ScenarioRun, req model
 				}
 			}
 
-			// ── Phase 10: Step-Up OTP (after persist so FK is valid) ────────
+			
 			if policyDecision.Decision == models.DecisionChallenge && e.otpService != nil {
 				otpChallenge, _, err := e.otpService.GenerateChallenge(ctx, tx.TransactionID)
 				if err != nil {
@@ -294,7 +294,7 @@ func (e *Engine) runLoop(ctx context.Context, run *models.ScenarioRun, req model
 				}
 			}
 
-			// 3. Audit events (TRANSACTION_CREATED & RISK_CALCULATED)
+			
 			auditDetails := map[string]any{
 				"scenario_id":   run.ScenarioID,
 				"scenario_type": string(run.ScenarioType),
@@ -309,7 +309,7 @@ func (e *Engine) runLoop(ctx context.Context, run *models.ScenarioRun, req model
 				"anomaly_score":     riskAssessment.AnomalyScore,
 			})
 
-			// 4. Kafka event publication (transaction.created & risk.evaluated)
+			
 			if e.kafka != nil {
 				txPayload, _ := json.Marshal(tx)
 				if err := e.kafka.Produce(ctx, kafka.TopicTransactionCreated, tx.TransactionID, txPayload); err != nil {
@@ -329,7 +329,7 @@ func (e *Engine) runLoop(ctx context.Context, run *models.ScenarioRun, req model
 				}
 			}
 
-			// 5. WebSocket Real-Time Event Broadcasts (Phase 13)
+			
 			if e.wsHub != nil {
 				e.wsHub.Broadcast("transaction_created", tx)
 				e.wsHub.Broadcast("risk_updated", riskAssessment)
@@ -354,8 +354,8 @@ func (e *Engine) runLoop(ctx context.Context, run *models.ScenarioRun, req model
 	e.finalizeWithCount(run, models.ScenarioCompleted, generated)
 }
 
-// settleDemoOTP auto-resolves half of challenges as verified (ALLOW) and half as failed (BLOCK)
-// so the demo stream shows both step-up outcomes.
+
+
 func (e *Engine) settleDemoOTP(
 	ctx context.Context,
 	tx *models.Transaction,
@@ -420,9 +420,9 @@ func (e *Engine) settleDemoOTP(
 	e.log.Info("generator: demo OTP rejected", "transaction_id", tx.TransactionID)
 }
 
-// recordVerifiedOTPAssessment persists the post-verification risk state. The
-// original ML score remains in the audit trail; the lower final score reflects
-// the successful simulated identity check that policy uses for authorization.
+
+
+
 func (e *Engine) recordVerifiedOTPAssessment(ctx context.Context, transactionID string, priorScore, challengeThreshold int) int {
 	finalScore := priorScore - 30
 	maxAllowed := challengeThreshold - 1
@@ -460,7 +460,7 @@ func (e *Engine) recordVerifiedOTPAssessment(ctx context.Context, transactionID 
 	return finalScore
 }
 
-// finalize updates the scenario status in memory and PostgreSQL.
+
 func (e *Engine) finalize(run *models.ScenarioRun, status models.ScenarioStatus) {
 	e.finalizeWithCount(run, status, run.GeneratedCount)
 }
@@ -480,7 +480,7 @@ func (e *Engine) finalizeWithCount(run *models.ScenarioRun, status models.Scenar
 	}
 }
 
-// validScenario checks whether a scenario type string is one of the canonical names.
+
 func validScenario(t models.ScenarioType) bool {
 	switch t {
 	case models.ScenarioNormal,

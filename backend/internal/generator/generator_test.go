@@ -29,8 +29,8 @@ var testPool = &models.EntityPool{
 	MerchantIDs: []string{"M301", "M302", "M303"},
 }
 
-// TestDeterminism verifies that two generators with the same seed produce
-// identical transaction sequences (AGENTS.md §22 — Demo Reliability Rule).
+
+
 func TestDeterminism(t *testing.T) {
 	seed := int64(42)
 
@@ -56,7 +56,7 @@ func TestDeterminism(t *testing.T) {
 	}
 }
 
-// TestVelocityPinsUser verifies that velocity attack uses the same user/device/IP.
+
 func TestVelocityPinsUser(t *testing.T) {
 	gen := NewBaseGenerator(42, testPool, &scenarios.VelocityAttackScenario{})
 
@@ -75,12 +75,12 @@ func TestVelocityPinsUser(t *testing.T) {
 	}
 }
 
-// TestAmountAnomaly verifies that the amount is significantly above the user's typical max.
+
 func TestAmountAnomaly(t *testing.T) {
 	gen := NewBaseGenerator(42, testPool, &scenarios.AmountAnomalyScenario{})
 
 	for i := 0; i < 10; i++ {
-		tx := gen.Next(i, 0) // target user 0 = C1001, typical_max=250
+		tx := gen.Next(i, 0) 
 		if tx.Amount < 250.0*5 {
 			t.Errorf("amount anomaly idx %d: amount %f too low (expected >1250)", i, tx.Amount)
 		}
@@ -100,9 +100,9 @@ func TestGeneratedTimestampsProgressInRealTime(t *testing.T) {
 	}
 }
 
-// TestNormalScenarioRespectsSeededUserAssociations verifies that each user keeps
-// the device and IP assigned in the seeded customer profile instead of cycling
-// across a shared bucket by index.
+
+
+
 func TestNormalScenarioRespectsSeededUserAssociations(t *testing.T) {
 	gen := NewBaseGenerator(42, testPool, &scenarios.NormalScenario{})
 
@@ -129,18 +129,18 @@ func TestNormalScenarioRespectsSeededUserAssociations(t *testing.T) {
 	}
 }
 
-// TestDeviceFarmSharesDevice verifies all transactions use the same device.
+
 func TestDeviceFarmSharesDevice(t *testing.T) {
 	gen := NewBaseGenerator(42, testPool, &scenarios.DeviceFarmScenario{})
 
-	sharedDevice := testPool.DeviceIDs[len(testPool.DeviceIDs)-1] // D206
+	sharedDevice := testPool.DeviceIDs[len(testPool.DeviceIDs)-1] 
 	for i := 0; i < 10; i++ {
 		tx := gen.Next(i, -1)
 		if tx.DeviceID != sharedDevice {
 			t.Errorf("device farm idx %d: expected device %s, got %s", i, sharedDevice, tx.DeviceID)
 		}
 	}
-	// Verify multiple users are cycled
+	
 	users := make(map[string]bool)
 	for i := 0; i < 6; i++ {
 		tx := gen.Next(i, -1)
@@ -151,11 +151,11 @@ func TestDeviceFarmSharesDevice(t *testing.T) {
 	}
 }
 
-// TestIPAbuseSharesIP verifies all transactions use the same high-risk IP.
+
 func TestIPAbuseSharesIP(t *testing.T) {
 	gen := NewBaseGenerator(42, testPool, &scenarios.IPAbuseScenario{})
 
-	sharedIP := testPool.IPAddresses[len(testPool.IPAddresses)-1] // IP-19
+	sharedIP := testPool.IPAddresses[len(testPool.IPAddresses)-1] 
 	for i := 0; i < 10; i++ {
 		tx := gen.Next(i, -1)
 		if tx.IPAddress != sharedIP {
@@ -164,7 +164,7 @@ func TestIPAbuseSharesIP(t *testing.T) {
 	}
 }
 
-// TestAccountTakeoverUsesHighRisk verifies ATO uses high-risk device/IP and abnormal amount.
+
 func TestAccountTakeoverUsesHighRisk(t *testing.T) {
 	gen := NewBaseGenerator(42, testPool, &scenarios.AccountTakeoverScenario{})
 
@@ -172,21 +172,21 @@ func TestAccountTakeoverUsesHighRisk(t *testing.T) {
 	highRiskIP := testPool.IPAddresses[len(testPool.IPAddresses)-1]
 
 	for i := 0; i < 5; i++ {
-		tx := gen.Next(i, 0) // target user 0 = C1001
+		tx := gen.Next(i, 0) 
 		if tx.DeviceID != highRiskDevice {
 			t.Errorf("ATO idx %d: expected high-risk device %s, got %s", i, highRiskDevice, tx.DeviceID)
 		}
 		if tx.IPAddress != highRiskIP {
 			t.Errorf("ATO idx %d: expected high-risk IP %s, got %s", i, highRiskIP, tx.IPAddress)
 		}
-		// Amount should be well above typical max of 250
+		
 		if tx.Amount < 250.0*3 {
 			t.Errorf("ATO idx %d: amount %f too low for takeover", i, tx.Amount)
 		}
 	}
 }
 
-// TestScenarioFor verifies the factory returns correct implementations.
+
 func TestScenarioFor(t *testing.T) {
 	tests := []struct {
 		input    models.ScenarioType
@@ -198,7 +198,7 @@ func TestScenarioFor(t *testing.T) {
 		{models.ScenarioDeviceFarm, models.ScenarioDeviceFarm},
 		{models.ScenarioIPAbuse, models.ScenarioIPAbuse},
 		{models.ScenarioAmountAnomaly, models.ScenarioAmountAnomaly},
-		{"unknown_type", models.ScenarioNormal}, // unknown falls back to normal
+		{"unknown_type", models.ScenarioNormal}, 
 	}
 
 	for _, tc := range tests {

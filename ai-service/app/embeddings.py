@@ -18,8 +18,8 @@ def _encode_sync(text: str) -> Optional[List[float]]:
     if _model_failed:
         return None
     if os.getenv("ENABLE_SEMANTIC_RAG", "false").lower() != "true":
-        # Enable only after the local all-MiniLM-L6-v2 package/model has been
-        # provisioned.  Lexical retrieval remains deterministic for the demo.
+                                                                             
+                                                                             
         return None
     try:
         if _model is None:
@@ -27,8 +27,8 @@ def _encode_sync(text: str) -> Optional[List[float]]:
             _model = SentenceTransformer(MODEL_NAME)
         return _model.encode(text, normalize_embeddings=True).tolist()
     except Exception as exc:
-        # RAG can fall back to lexical retrieval.  Core policy and ML do not
-        # depend on a downloaded embedding model being available.
+                                                                            
+                                                                 
         print(f"Embedding model unavailable; using lexical RAG fallback: {exc}")
         _model_failed = True
         return None

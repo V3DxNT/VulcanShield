@@ -7,8 +7,8 @@ import (
 	"github.com/vulcanshield/backend/internal/models"
 )
 
-// DeviceFarmScenario simulates multiple distinct users sharing the same device,
-// which creates suspicious graph relationships detectable in Phase 11.
+
+
 type DeviceFarmScenario struct{}
 
 func (d *DeviceFarmScenario) Type() models.ScenarioType { return models.ScenarioDeviceFarm }

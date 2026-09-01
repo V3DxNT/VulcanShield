@@ -12,25 +12,25 @@ import (
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
-		return true // Allow all origins for hackathon demo
+		return true 
 	},
 }
 
-// EventPayload represents a real-time event sent over WebSockets to the frontend.
+
 type EventPayload struct {
-	EventType string    `json:"event_type"` // e.g. transaction_created, risk_updated, decision_created
+	EventType string    `json:"event_type"` 
 	Data      any       `json:"data"`
 	Timestamp time.Time `json:"timestamp"`
 }
 
-// Hub manages connected WebSocket clients and broadcasts events.
+
 type Hub struct {
 	mu      sync.RWMutex
 	clients map[*websocket.Conn]bool
 	log     *slog.Logger
 }
 
-// NewHub creates a new WebSocket Hub.
+
 func NewHub(log *slog.Logger) *Hub {
 	return &Hub{
 		clients: make(map[*websocket.Conn]bool),
@@ -38,7 +38,7 @@ func NewHub(log *slog.Logger) *Hub {
 	}
 }
 
-// ServeHTTP upgrades HTTP requests to WebSocket connections at /api/v1/ws.
+
 func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -52,7 +52,7 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	h.log.Info("websocket client connected", "remote_addr", r.RemoteAddr)
 
-	// Keep-alive read loop
+	
 	defer func() {
 		h.mu.Lock()
 		delete(h.clients, conn)
@@ -69,7 +69,7 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Broadcast sends an event payload to all connected WebSocket clients.
+
 func (h *Hub) Broadcast(eventType string, data any) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()

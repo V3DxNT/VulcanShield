@@ -52,6 +52,7 @@ type InvestigationResponse struct {
 	RecommendedAction string               `json:"recommended_action"`
 	Confidence        float64              `json:"confidence"`
 	LLMModel          string               `json:"llm_model"`
+	LLMPrompt         string               `json:"llm_prompt,omitempty"`
 	RiskScore         int                  `json:"risk_score"`
 	FraudProbability  float64              `json:"fraud_probability"`
 	AnomalyScore      float64              `json:"anomaly_score"`

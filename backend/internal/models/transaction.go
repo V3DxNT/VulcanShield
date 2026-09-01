@@ -2,8 +2,8 @@ package models
 
 import "time"
 
-// TransactionStatus represents the lifecycle state of a transaction.
-// This is distinct from PolicyDecision (ALLOW/CHALLENGE/BLOCK).
+
+
 type TransactionStatus string
 
 const (
@@ -14,8 +14,8 @@ const (
 	StatusCancelled  TransactionStatus = "CANCELLED"
 )
 
-// Transaction represents a synthetic financial transaction.
-// Matches the transactions table in the Phase 2 schema.
+
+
 type Transaction struct {
 	TransactionID string            `json:"transaction_id"`
 	UserID        string            `json:"user_id"`
@@ -30,9 +30,9 @@ type Transaction struct {
 	CreatedAt     time.Time         `json:"created_at"`
 }
 
-// User represents a customer profile with authoritative policy thresholds.
-// challenge_threshold and block_threshold are the authoritative per-user policy
-// parameters. risk_tolerance is contextual metadata only.
+
+
+
 type User struct {
 	UserID             string    `json:"user_id"`
 	Name               string    `json:"name"`

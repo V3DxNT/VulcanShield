@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// PredictRequest matches the Pydantic schema expected by Python FastAPI ML service.
+
 type PredictRequest struct {
 	TransactionID    string  `json:"transaction_id"`
 	UserID           string  `json:"user_id"`
@@ -23,7 +23,7 @@ type PredictRequest struct {
 	IsVPN            bool    `json:"is_vpn"`
 }
 
-// PredictResponse matches the ML response schema.
+
 type PredictResponse struct {
 	TransactionID    string         `json:"transaction_id"`
 	FraudProbability float64        `json:"fraud_probability"`
@@ -32,13 +32,13 @@ type PredictResponse struct {
 	FeatureSnapshot  map[string]any `json:"feature_snapshot"`
 }
 
-// Client communicates with the Python FastAPI ML Service.
+
 type Client struct {
 	baseURL    string
 	httpClient *http.Client
 }
 
-// NewClient returns a Client configured for baseURL.
+
 func NewClient(baseURL string) *Client {
 	return &Client{
 		baseURL: baseURL,
@@ -48,8 +48,8 @@ func NewClient(baseURL string) *Client {
 	}
 }
 
-// Predict calls POST /predict on the Python ML service.
-// On network/service error, returns a heuristic fallback prediction (degraded mode).
+
+
 func (c *Client) Predict(ctx context.Context, req *PredictRequest) (*PredictResponse, error) {
 	url := fmt.Sprintf("%s/predict", c.baseURL)
 
@@ -66,7 +66,7 @@ func (c *Client) Predict(ctx context.Context, req *PredictRequest) (*PredictResp
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
-		// Heuristic fallback if Python ML service is offline
+		
 		return fallbackPredict(req), nil
 	}
 	defer resp.Body.Close()
@@ -83,7 +83,7 @@ func (c *Client) Predict(ctx context.Context, req *PredictRequest) (*PredictResp
 	return &res, nil
 }
 
-// fallbackPredict calculates a deterministic heuristic score when ML service is offline.
+
 func fallbackPredict(req *PredictRequest) *PredictResponse {
 	var fraudProb float64
 	var anomalyScore float64

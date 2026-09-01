@@ -7,9 +7,9 @@ import (
 	"github.com/vulcanshield/backend/internal/models"
 )
 
-// IPAbuseScenario simulates multiple distinct users making transactions from
-// the same high-risk IP (seeded as VPN/proxy), creating shared-IP fraud graph
-// relationships exploited in Phase 11.
+
+
+
 type IPAbuseScenario struct{}
 
 func (ip *IPAbuseScenario) Type() models.ScenarioType { return models.ScenarioIPAbuse }

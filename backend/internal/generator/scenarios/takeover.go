@@ -7,9 +7,9 @@ import (
 	"github.com/vulcanshield/backend/internal/models"
 )
 
-// AccountTakeoverScenario simulates an attacker using a new (high-risk) device
-// and high-risk IP to make an unusually large transaction on a legitimate user's
-// account — creating clear behavioural deviation from historical patterns.
+
+
+
 type AccountTakeoverScenario struct{}
 
 func (a *AccountTakeoverScenario) Type() models.ScenarioType { return models.ScenarioAccountTakeover }

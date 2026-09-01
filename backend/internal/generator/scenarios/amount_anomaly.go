@@ -7,9 +7,9 @@ import (
 	"github.com/vulcanshield/backend/internal/models"
 )
 
-// AmountAnomalyScenario generates transactions with amounts far exceeding
-// a user's typical_max_amount — a strong ML anomaly signal for Isolation
-// Forest and XGBoost in Phase 6.
+
+
+
 type AmountAnomalyScenario struct{}
 
 func (a *AmountAnomalyScenario) Type() models.ScenarioType { return models.ScenarioAmountAnomaly }

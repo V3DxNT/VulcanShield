@@ -20,7 +20,7 @@ type GraphHandlers struct {
 	Engine    *graph.Engine
 }
 
-// ListRelationships handles GET /api/v1/graph/relationships.
+
 func (h *GraphHandlers) ListRelationships(w http.ResponseWriter, r *http.Request) {
 	setNoStoreHeaders(w)
 
@@ -53,7 +53,7 @@ func (h *GraphHandlers) ListRelationships(w http.ResponseWriter, r *http.Request
 	})
 }
 
-// GetNeighbors handles GET /api/v1/graph/neighbors/{user_id}.
+
 func (h *GraphHandlers) GetNeighbors(w http.ResponseWriter, r *http.Request) {
 	setNoStoreHeaders(w)
 

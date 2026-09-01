@@ -24,7 +24,7 @@ func (e *Engine) ExtractFeatures(ctx context.Context, userID, deviceID, ipAddres
 
 	rels, err := e.graphRepo.GetNeighbors(ctx, userID)
 	if err != nil {
-		return &models.GraphFeatures{}, nil // Fallback
+		return &models.GraphFeatures{}, nil 
 	}
 
 	gf := &models.GraphFeatures{}
@@ -43,8 +43,8 @@ func (e *Engine) ExtractFeatures(ctx context.Context, userID, deviceID, ipAddres
 	return gf, nil
 }
 
-// RecordTransactionEdges writes the spec graph edges for a transaction:
-// USER —USED→ DEVICE, USER —CONNECTED→ IP, USER —TRANSACTED_WITH→ MERCHANT.
+
+
 func (e *Engine) RecordTransactionEdges(ctx context.Context, tx *models.Transaction, isEmulator, isVPN bool) error {
 	if e.graphRepo == nil || tx == nil {
 		return nil

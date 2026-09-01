@@ -10,8 +10,8 @@ const (
 	DecisionBlock     PolicyDecisionType = "BLOCK"
 )
 
-// PolicyDecision represents the authoritative authorization decision made by the Policy Engine.
-// Matches the Phase 2 schema `policy_decisions` table.
+
+
 type PolicyDecision struct {
 	DecisionID         string             `json:"decision_id"`
 	TransactionID      string             `json:"transaction_id"`

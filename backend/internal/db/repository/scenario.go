@@ -9,20 +9,20 @@ import (
 	"github.com/vulcanshield/backend/internal/models"
 )
 
-// ScenarioRepository manages scenario lifecycle records and audit events.
-// All SQL conforms to the Phase 2 schema (scenarios, audit_events tables).
+
+
 type ScenarioRepository interface {
-	// Create inserts a new scenario run and returns it.
+	
 	Create(ctx context.Context, run *models.ScenarioRun) error
 
-	// UpdateStatus sets status (and optionally ended_at) on a scenario row.
+	
 	UpdateStatus(ctx context.Context, scenarioID string, status models.ScenarioStatus, endedAt *time.Time) error
 
-	// GetLatest returns the most recently started scenario run, or ErrNotFound.
+	
 	GetLatest(ctx context.Context) (*models.ScenarioRun, error)
 
-	// InsertAuditEvent appends a TRANSACTION_CREATED audit record.
-	// details must be a JSON-serialisable value.
+	
+	
 	InsertAuditEvent(ctx context.Context, transactionID, eventType string, details any) error
 }
 
@@ -30,7 +30,7 @@ type pgxScenarioRepository struct {
 	pool *pgxpool.Pool
 }
 
-// NewScenarioRepository returns a PostgreSQL-backed ScenarioRepository.
+
 func NewScenarioRepository(pool *pgxpool.Pool) ScenarioRepository {
 	return &pgxScenarioRepository{pool: pool}
 }

@@ -8,14 +8,14 @@ import (
 	"strings"
 )
 
-// Config holds all application configuration loaded from environment variables.
-// Required variables are validated; missing required vars cause Load to return an error.
+
+
 type Config struct {
-	// Server
+	
 	Port     string
 	LogLevel string
 
-	// PostgreSQL — required for startup
+	
 	PostgresHost     string
 	PostgresPort     string
 	PostgresUser     string
@@ -23,20 +23,20 @@ type Config struct {
 	PostgresDB       string
 	PostgresMaxConns int
 
-	// Redis — non-fatal if unreachable
+	
 	RedisHost     string
 	RedisPort     string
 	RedisPassword string
 
-	// Kafka — non-fatal if unreachable
+	
 	KafkaBrokers []string
 
-	// Downstream services (placeholders, unused in Phase 3)
+	
 	MLServiceURL string
 	AIServiceURL string
 }
 
-// DSN returns the PostgreSQL connection string.
+
 func (c *Config) DSN() string {
 	return fmt.Sprintf(
 		"postgres://%s:%s@%s:%s/%s?sslmode=disable",
@@ -46,13 +46,13 @@ func (c *Config) DSN() string {
 	)
 }
 
-// RedisAddr returns host:port for the Redis client.
+
 func (c *Config) RedisAddr() string {
 	return c.RedisHost + ":" + c.RedisPort
 }
 
-// Load reads configuration from environment variables and returns a validated Config.
-// Missing required variables are returned as an error; main should log and exit.
+
+
 func Load() (*Config, error) {
 	cfg := &Config{
 		Port:          getEnv("BACKEND_PORT", "8080"),
@@ -68,7 +68,7 @@ func Load() (*Config, error) {
 		AIServiceURL:  getEnv("AI_SERVICE_URL", "http://ai-service:8001"),
 	}
 
-	// Required variables
+	
 	var errs []string
 
 	cfg.PostgresPassword = os.Getenv("POSTGRES_PASSWORD")
@@ -76,11 +76,11 @@ func Load() (*Config, error) {
 		errs = append(errs, "POSTGRES_PASSWORD is required")
 	}
 
-	// Kafka brokers: comma-separated
+	
 	brokersRaw := getEnv("KAFKA_BROKERS", "kafka:9092")
 	cfg.KafkaBrokers = splitAndTrim(brokersRaw, ",")
 
-	// PostgreSQL max connections
+	
 	maxConnsStr := getEnv("POSTGRES_MAX_CONNS", "20")
 	maxConns, err := strconv.Atoi(maxConnsStr)
 	if err != nil || maxConns < 1 {

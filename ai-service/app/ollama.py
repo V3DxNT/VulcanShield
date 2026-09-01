@@ -133,20 +133,20 @@ def build_decision_summary(
 
     if last_tx_status in {"APPROVED", "VERIFIED"} and decision in {"BLOCK", "CHALLENGE"} and recent_transactions:
         user_context = (
-            f"• User-specific RAG context: the customer’s last transaction was {last_tx_status.upper()} and the historical sequence shows {len(successful_history)} successful approval(s) before this event. "
+            f"• User-specific retrieval context: the customer’s last transaction was {last_tx_status.upper()} and the historical sequence shows {len(successful_history)} successful approval(s) before this event. "
             f"This current transaction differs from that trusted pattern because it reached ₹{amount:,.2f}, which exceeds the customer’s historical max of ₹{amount_threshold:,.2f}."
         )
     elif prior_fraud_count > 0 and last_tx_status in {"BLOCKED", "CANCELLED"}:
         user_context = (
-            f"• User-specific RAG context: this customer’s last transaction was {last_tx_status.upper()}, "
+            f"• User-specific retrieval context: this customer’s last transaction was {last_tx_status.upper()}, "
             "so the current decision is evaluated against the same historical fraud pattern before the next transaction is accepted."
         )
     elif prior_fraud_count > 0:
         user_context = (
-            f"• User-specific RAG context: this customer has {prior_fraud_count} prior risky event(s), which the policy and investigation layer treats as relevant historical context."
+            f"• User-specific retrieval context: this customer has {prior_fraud_count} prior risky event(s), which the policy and investigation layer treats as relevant historical context."
         )
     else:
-        user_context = "• User-specific RAG context: no recent prior fraud pattern was detected, so this decision relies mostly on the current transaction and profile checks."
+        user_context = "• User-specific retrieval context: no recent prior fraud pattern was detected, so this decision relies mostly on the current transaction and profile checks."
 
     if decision == "BLOCK":
         bits = [
@@ -231,7 +231,7 @@ async def generate_llm_investigation(
     similar_cases: list,
 ) -> InvestigationResponse:
     
-    # 1. Build Evidence List from Structured Tools
+                                                  
     evidence = []
     
     if device_profile.get("is_emulator"):
@@ -272,8 +272,8 @@ async def generate_llm_investigation(
             severity="LOW"
         ))
 
-    # Policy is authoritative. The investigator explains the final decision and any
-    # step-up verification result rather than substituting a raw ML score.
+                                                                                   
+                                                                          
     decision = (req.decision or "ALLOW").upper()
     if not decision:
         decision = "ALLOW"
@@ -341,8 +341,15 @@ async def generate_llm_investigation(
         f"Policy decision = {decision}; final risk score = {risk_progression['final']}/100 after challenge or verification outcome was considered.",
     ]
 
+    recent_history = customer_history.get("recent_transactions") or []
+    recent_history_text = " | ".join(
+        f"{tx.get('status', 'UNKNOWN')}:{tx.get('amount', 0):,.2f}"
+        for tx in recent_history[:5]
+    ) if recent_history else "no recent transactions available"
+
     inv_id = f"INV-{req.transaction_id}"
     llm_model = "rule-based-evidence-fallback"
+    llm_prompt = ""
     confidence = 0.58 + min(0.2, 0.05 * max(0, len(evidence))) + (0.1 if similar_cases else 0.0) + (0.08 if decision in {"CHALLENGE", "BLOCK"} else 0.0)
     confidence = round(min(0.97, confidence), 2)
 
@@ -359,19 +366,20 @@ async def generate_llm_investigation(
         if provider == "ollama":
             selected_model = detect_best_ollama_model(available_models)
             llm_model = selected_model
-            prompt = (
+            llm_prompt = (
                 f"You are a Fraud Analyst AI. Analyze transaction {req.transaction_id} for user {req.user_id}.\n"
-                f"Amount: ₹{req.amount:,.2f}, Risk Score: {req.risk_score}/100, Fraud Probability: {req.fraud_probability}.\n"
+                f"Amount: ₹{req.amount:,.2f}, Risk Score: {req.risk_score}/100, Fraud Probability: {req.fraud_probability}, Anomaly Score: {req.anomaly_score}.\n"
                 f"Authoritative policy decision: {decision}. Transaction status: {req.status}.\n"
-                f"User prior fraud context: last transaction status={customer_history.get('last_transaction_status')}, previous fraud count={customer_history.get('previous_fraud_count', 0)}.\n"
+                f"Customer retrieval context: last_transaction_status={customer_history.get('last_transaction_status', 'unknown')}; previous_fraud_count={customer_history.get('previous_fraud_count', 0)}; historical_max_amount=₹{customer_history.get('typical_max_amount', 'unknown')}; recent_transaction_history={recent_history_text}.\n"
+                f"Device profile: device_id={device_profile.get('device_id', 'unknown')}; trust_score={device_profile.get('trust_score', 'n/a')}; is_emulator={device_profile.get('is_emulator', False)}.\n"
+                f"IP profile: ip_address={ip_profile.get('ip_address', 'unknown')}; risk_score={ip_profile.get('risk_score', 'n/a')}; is_vpn={ip_profile.get('is_vpn', False)}.\n"
                 f"Evidence: {[e.fact for e in evidence]}\n"
-                "Return a 5-bullet structured explanation that explains why this transaction succeeded or failed under the policy engine. "
-                "Base your answer only on the supplied evidence and the authoritative decision. Do not invent facts."
+                "Return a 5-bullet structured explanation that explains why this transaction succeeded or failed under the policy engine using only the supplied evidence and the authoritative decision. Do not invent facts or claim hidden details."
             )
             async with httpx.AsyncClient(timeout=10.0) as client:
                 res = await client.post(
                     f"{OLLAMA_URL}/api/generate",
-                    json={"model": selected_model, "prompt": prompt, "stream": False}
+                    json={"model": selected_model, "prompt": llm_prompt, "stream": False}
                 )
                 payload = res.json() if res.headers.get("content-type", "").startswith("application/json") else {}
                 if res.status_code != 200:
@@ -383,6 +391,14 @@ async def generate_llm_investigation(
                     raise RuntimeError("Ollama returned an empty response for the investigation prompt.")
                 summary = llm_out
         elif provider == "groq":
+            llm_prompt = (
+                f"Transaction {req.transaction_id} for user {req.user_id}.\n"
+                f"Amount: ₹{req.amount:,.2f}; Risk score: {req.risk_score}; Fraud probability: {req.fraud_probability}; Anomaly score: {req.anomaly_score}; Policy decision: {decision}; Status: {req.status}.\n"
+                f"Last transaction status: {customer_history.get('last_transaction_status')}; previous_fraud_count: {customer_history.get('previous_fraud_count', 0)}.\n"
+                f"Recent customer history: {recent_history_text}.\n"
+                f"Evidence: {[e.fact for e in evidence]}\n"
+                "Return a 5-bullet structured explanation grounded in the provided evidence and the policy decision."
+            )
             groq_api_key = (os.getenv("GROQ_API_KEY") or "").strip()
             if not groq_api_key:
                 raise RuntimeError("GROQ_API_KEY is not configured, so the Groq fallback cannot be used.")
@@ -443,6 +459,7 @@ async def generate_llm_investigation(
         recommended_action=recommended_action,
         confidence=confidence,
         llm_model=llm_model,
+        llm_prompt=llm_prompt,
         initial_risk_score=risk_progression["initial"],
         final_risk_score=risk_progression["final"],
         retrieval_trace=retrieval_trace,

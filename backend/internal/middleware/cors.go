@@ -5,14 +5,14 @@ import (
 	"strings"
 )
 
-// CORS returns middleware that sets Cross-Origin Resource Sharing headers.
-// This middleware is DISABLED BY DEFAULT in Phase 3 — there is no frontend yet.
-// It will be enabled in Phase 12 when the Next.js frontend is introduced.
-//
-// Usage (when enabling):
-//
-//	origins := []string{"http://localhost:3000"}
-//	middleware.Chain(CORS(origins), ...)(mux)
+
+
+
+
+
+
+
+
 func CORS(allowedOrigins []string) func(http.Handler) http.Handler {
 	originSet := make(map[string]bool, len(allowedOrigins))
 	for _, o := range allowedOrigins {
@@ -31,7 +31,7 @@ func CORS(allowedOrigins []string) func(http.Handler) http.Handler {
 				w.Header().Set("Vary", "Origin")
 			}
 
-			// Handle preflight
+			
 			if r.Method == http.MethodOptions {
 				w.WriteHeader(http.StatusNoContent)
 				return

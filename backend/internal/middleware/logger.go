@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// responseWriter wraps http.ResponseWriter to capture the status code.
+
 type responseWriter struct {
 	http.ResponseWriter
 	status int
@@ -28,9 +28,9 @@ func (rw *responseWriter) Write(b []byte) (int, error) {
 	return rw.ResponseWriter.Write(b)
 }
 
-// StructuredLogger returns middleware that emits a structured slog entry for
-// every HTTP request, including method, path, status, latency, and request ID.
-// Fields match PROJECT_SPEC.md §98 logging requirements.
+
+
+
 func StructuredLogger(log *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

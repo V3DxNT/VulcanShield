@@ -25,14 +25,14 @@ import (
 )
 
 func main() {
-	// ── 1. Configuration ──────────────────────────────────────────────────────
+	
 	cfg, err := config.Load()
 	if err != nil {
 		slog.Error("configuration error", "error", err)
 		os.Exit(1)
 	}
 
-	// ── 2. Logger ─────────────────────────────────────────────────────────────
+	
 	log := logger.Init(cfg.LogLevel)
 	log.Info("vulcanshield backend starting",
 		"service", "backend",
@@ -41,7 +41,7 @@ func main() {
 		"log_level", cfg.LogLevel,
 	)
 
-	// ── 3. PostgreSQL (required — fatal on failure) ───────────────────────────
+	
 	ctx := context.Background()
 	pool, err := appdb.NewPool(ctx, cfg)
 	if err != nil {
@@ -51,7 +51,7 @@ func main() {
 	log.Info("postgresql connected", "service", "backend",
 		"host", cfg.PostgresHost, "db", cfg.PostgresDB)
 
-	// ── 4. Redis (non-fatal — graceful degradation) ───────────────────────────
+	
 	redisClient, err := appredis.NewClient(cfg)
 	if err != nil {
 		log.Warn("redis unavailable — continuing in degraded mode",
@@ -73,7 +73,7 @@ func main() {
 		log.Info("demo runtime state reset complete", "service", "backend")
 	}
 
-	// ── 5. Kafka Producer (non-fatal — graceful degradation) ──────────────────
+	
 	kafkaProducer, err := kafka.NewProducer(cfg.KafkaBrokers)
 	if err != nil {
 		log.Warn("kafka unavailable — continuing in degraded mode",
@@ -84,7 +84,7 @@ func main() {
 			"brokers", cfg.KafkaBrokers)
 	}
 
-	// ── 6. Repositories & Engine Services ────────────────────────────────────
+	
 	txRepo := repository.NewTransactionRepository(pool)
 	scRepo := repository.NewScenarioRepository(pool)
 	entityRepo := repository.NewEntityRepository(pool)
@@ -103,14 +103,14 @@ func main() {
 	graphEngine := graph.NewEngine(graphRepo)
 	wsHub := appws.NewHub(log)
 
-	// ── 7. Generator Engine ──────────────────────────────────────────────────
+	
 	engine := generator.NewEngine(
 		log, txRepo, scRepo, entityRepo, riskRepo,
 		policyRepo, challengeRepo, userRepo,
 		kafkaProducer, velocityEngine, mlClient, otpService, graphEngine, wsHub,
 	)
 
-	// ── 8. Build Probers for readiness endpoint ──────────────────────────────
+	
 	pgProber := server.NewPgxProber(pool.Ping)
 
 	var redisProber v1.Prober
@@ -133,7 +133,7 @@ func main() {
 		Kafka:    kafkaProber,
 	}
 
-	// ── 9. HTTP Router ───────────────────────────────────────────────────────
+	
 	handlers := &v1.Handlers{
 		Scenarios: &v1.ScenarioHandlers{
 			Engine: engine,
@@ -169,10 +169,10 @@ func main() {
 		Handlers: handlers,
 	})
 
-	// ── 10. HTTP Server ──────────────────────────────────────────────────────
+	
 	srv := server.New(cfg.Port, router, log)
 
-	// ── 11. Graceful Shutdown ────────────────────────────────────────────────
+	
 	sigCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -191,7 +191,7 @@ func main() {
 		}
 	}
 
-	// Stop any running scenario before server shutdown
+	
 	if _, err := engine.Stop(context.Background()); err != nil {
 		log.Warn("failed to stop active scenario during shutdown", "error", err)
 	}
@@ -217,7 +217,7 @@ func main() {
 	log.Info("shutdown complete", "service", "backend")
 }
 
-// ── Prober adapters ──────────────────────────────────────────────────────────
+
 
 type redisClientPinger struct {
 	ping func(ctx context.Context) error

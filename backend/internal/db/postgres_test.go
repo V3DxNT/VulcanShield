@@ -1,4 +1,4 @@
-//go:build integration
+
 
 package db
 
@@ -11,8 +11,8 @@ import (
 )
 
 func TestNewPool_Integration(t *testing.T) {
-	// Requires a running PostgreSQL container.
-	// Run with: go test ./... -tags=integration
+	
+	
 	t.Setenv("POSTGRES_PASSWORD", getEnvOrDefault("POSTGRES_PASSWORD", "vulcanpass"))
 	t.Setenv("POSTGRES_HOST", getEnvOrDefault("POSTGRES_HOST", "localhost"))
 	t.Setenv("POSTGRES_PORT", getEnvOrDefault("POSTGRES_PORT", "5433"))

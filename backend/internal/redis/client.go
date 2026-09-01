@@ -8,9 +8,9 @@ import (
 	"github.com/vulcanshield/backend/internal/config"
 )
 
-// NewClient creates a go-redis/v9 client and pings Redis to verify connectivity.
-// Redis connectivity is non-fatal: errors are returned to the caller which should
-// log a warning and continue (graceful degradation per PROJECT_SPEC.md §100).
+
+
+
 func NewClient(cfg *config.Config) (*redis.Client, error) {
 	client := redis.NewClient(&redis.Options{
 		Addr:     cfg.RedisAddr(),

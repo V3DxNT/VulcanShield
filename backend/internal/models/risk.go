@@ -2,8 +2,8 @@ package models
 
 import "time"
 
-// RiskAssessment represents the ML prediction and normalized risk score (0-100).
-// Matches the Phase 2 schema `risk_assessments` table exactly.
+
+
 type RiskAssessment struct {
 	AssessmentID        string         `json:"assessment_id"`
 	TransactionID       string         `json:"transaction_id"`

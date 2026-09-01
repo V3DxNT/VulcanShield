@@ -8,7 +8,7 @@ import (
 	"github.com/vulcanshield/backend/internal/models"
 )
 
-// RiskRepository defines data access for ML risk assessments.
+
 type RiskRepository interface {
 	Create(ctx context.Context, ra *models.RiskAssessment) error
 	GetByTransactionID(ctx context.Context, txID string) (*models.RiskAssessment, error)
@@ -18,7 +18,7 @@ type pgxRiskRepository struct {
 	pool *pgxpool.Pool
 }
 
-// NewRiskRepository returns a PostgreSQL-backed RiskRepository.
+
 func NewRiskRepository(pool *pgxpool.Pool) RiskRepository {
 	return &pgxRiskRepository{pool: pool}
 }

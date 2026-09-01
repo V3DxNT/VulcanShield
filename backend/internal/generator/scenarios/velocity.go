@@ -7,9 +7,9 @@ import (
 	"github.com/vulcanshield/backend/internal/models"
 )
 
-// VelocityAttackScenario generates rapid high-frequency transactions for a
-// single target user from the same device and IP, simulating card testing
-// or velocity attacks detectable by Redis sliding windows.
+
+
+
 type VelocityAttackScenario struct{}
 
 func (v *VelocityAttackScenario) Type() models.ScenarioType { return models.ScenarioVelocityAttack }

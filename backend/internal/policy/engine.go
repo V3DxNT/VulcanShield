@@ -7,16 +7,16 @@ import (
 	"github.com/vulcanshield/backend/internal/models"
 )
 
-// Engine evaluates standardized risk scores against per-user authoritative policy thresholds.
+
 type Engine struct{}
 
-// NewEngine creates a new Policy Engine.
+
 func NewEngine() *Engine {
 	return &Engine{}
 }
 
-// Evaluate determines the authoritative payment authorization decision.
-// Default thresholds: challenge_threshold=65, block_threshold=85.
+
+
 func (e *Engine) Evaluate(
 	tx *models.Transaction,
 	ra *models.RiskAssessment,

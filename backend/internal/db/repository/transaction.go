@@ -8,39 +8,39 @@ import (
 	"github.com/vulcanshield/backend/internal/models"
 )
 
-// ErrNotFound is returned when a requested record does not exist.
+
 var ErrNotFound = errors.New("record not found")
 
-// TransactionRepository defines the data access interface for transactions.
+
 type TransactionRepository interface {
-	// GetByID retrieves a single transaction by its ID.
+	
 	GetByID(ctx context.Context, id string) (*models.Transaction, error)
 
-	// ListByUser retrieves recent transactions for a user, ordered by timestamp desc.
+	
 	ListByUser(ctx context.Context, userID string, limit int) ([]*models.Transaction, error)
 
-	// ListRecent retrieves the most recent transactions across all users.
+	
 	ListRecent(ctx context.Context, limit int) ([]*models.Transaction, error)
 
-	// Create persists a new transaction record.
+	
 	Create(ctx context.Context, tx *models.Transaction) error
 
-	// UpdateStatus updates the lifecycle status of a transaction.
+	
 	UpdateStatus(ctx context.Context, id string, status models.TransactionStatus) error
 }
 
-// pgxTransactionRepository is the PostgreSQL-backed implementation.
+
 type pgxTransactionRepository struct {
 	pool *pgxpool.Pool
 }
 
-// NewTransactionRepository returns a PostgreSQL-backed TransactionRepository.
+
 func NewTransactionRepository(pool *pgxpool.Pool) TransactionRepository {
 	return &pgxTransactionRepository{pool: pool}
 }
 
-// GetByID retrieves a transaction by primary key.
-// Returns ErrNotFound if no matching record exists.
+
+
 func (r *pgxTransactionRepository) GetByID(ctx context.Context, id string) (*models.Transaction, error) {
 	const q = `
 		SELECT transaction_id, user_id, device_id, ip_address, merchant_id,
@@ -63,7 +63,7 @@ func (r *pgxTransactionRepository) GetByID(ctx context.Context, id string) (*mod
 	return &t, nil
 }
 
-// ListByUser returns up to limit transactions for userID, newest first.
+
 func (r *pgxTransactionRepository) ListByUser(ctx context.Context, userID string, limit int) ([]*models.Transaction, error) {
 	const q = `
 		SELECT transaction_id, user_id, device_id, ip_address, merchant_id,
@@ -93,7 +93,7 @@ func (r *pgxTransactionRepository) ListByUser(ctx context.Context, userID string
 	return txs, rows.Err()
 }
 
-// ListRecent returns up to limit transactions across all users, newest first.
+
 func (r *pgxTransactionRepository) ListRecent(ctx context.Context, limit int) ([]*models.Transaction, error) {
 	const q = `
 		SELECT transaction_id, user_id, device_id, ip_address, merchant_id,
@@ -122,7 +122,7 @@ func (r *pgxTransactionRepository) ListRecent(ctx context.Context, limit int) ([
 	return txs, rows.Err()
 }
 
-// Create inserts a new transaction into PostgreSQL.
+
 func (r *pgxTransactionRepository) Create(ctx context.Context, tx *models.Transaction) error {
 	const q = `
 		INSERT INTO transactions
@@ -137,7 +137,7 @@ func (r *pgxTransactionRepository) Create(ctx context.Context, tx *models.Transa
 	return err
 }
 
-// UpdateStatus updates the lifecycle status of an existing transaction.
+
 func (r *pgxTransactionRepository) UpdateStatus(ctx context.Context, id string, status models.TransactionStatus) error {
 	const q = `UPDATE transactions SET status = $1 WHERE transaction_id = $2`
 	tag, err := r.pool.Exec(ctx, q, status, id)
@@ -150,7 +150,7 @@ func (r *pgxTransactionRepository) UpdateStatus(ctx context.Context, id string, 
 	return nil
 }
 
-// isNoRows returns true for pgx "no rows" errors.
+
 func isNoRows(err error) bool {
 	return err != nil && err.Error() == "no rows in result set"
 }

@@ -42,12 +42,12 @@ class MLPredictor:
         
         df = pd.DataFrame([features_dict])[self.feature_cols]
         
-        # 1. Fraud Probability from XGBoost
+                                           
         fraud_prob = float(self.xgb.predict_proba(df)[0][1])
         
-        # 2. Anomaly Score from Isolation Forest (normalized 0.0 - 1.0)
-        raw_iso_score = float(self.iso.score_samples(df)[0]) # Higher is less anomalous
-        # Transform score_samples [-0.8, -0.2] to anomaly_score [0.0, 1.0]
+                                                                       
+        raw_iso_score = float(self.iso.score_samples(df)[0])                           
+                                                                          
         anomaly_score = float(np.clip(1.0 - (raw_iso_score + 0.8) / 0.6, 0.0, 1.0))
         
         return PredictResponse(

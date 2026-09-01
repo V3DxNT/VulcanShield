@@ -6,15 +6,15 @@ import (
 	appredis "github.com/vulcanshield/backend/internal/redis"
 )
 
-// FeatureBuilder assembles transaction features, Redis velocity signals, and user profile data.
+
 type FeatureBuilder struct{}
 
-// NewFeatureBuilder creates a new FeatureBuilder.
+
 func NewFeatureBuilder() *FeatureBuilder {
 	return &FeatureBuilder{}
 }
 
-// BuildVector constructs a typed PredictRequest payload for ML inference.
+
 func (b *FeatureBuilder) BuildVector(
 	tx *models.Transaction,
 	user *models.UserProfile,

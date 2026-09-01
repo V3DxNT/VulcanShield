@@ -60,7 +60,7 @@ body {
   }
 }
 
-/* Scrollbar */
+
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #c7c7cc; border-radius: 3px; }

@@ -82,8 +82,8 @@ export default function NetworkGraph({ edges, height = 320, onSelectNode, select
     return m;
   }, [nodes]);
 
-	// Show one investigation at a time.  In the absence of an explicit
-	// selection, the newest relationship's source is the active entity.
+	
+	
 	const activeId = selectedId ?? hoverId ?? edges[0]?.source_id ?? null;
 	const visibleEdges = useMemo(() => edges.filter(e => e.source_id === activeId || e.target_id === activeId), [edges, activeId]);
 	const visibleNodeIDs = useMemo(() => new Set(visibleEdges.flatMap(e => [e.source_id, e.target_id])), [visibleEdges]);

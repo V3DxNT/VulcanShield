@@ -1,4 +1,4 @@
-/** @type {import('next').NextConfig} */
+
 const BACKEND_URL = process.env.BACKEND_URL || 'http://backend:8080';
 
 const nextConfig = {

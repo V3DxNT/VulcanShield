@@ -8,7 +8,7 @@ import (
 	"github.com/vulcanshield/backend/internal/models"
 )
 
-// PolicyRepository defines data access for policy decisions.
+
 type PolicyRepository interface {
 	Create(ctx context.Context, pd *models.PolicyDecision) error
 	GetByTransactionID(ctx context.Context, txID string) (*models.PolicyDecision, error)
@@ -18,15 +18,15 @@ type pgxPolicyRepository struct {
 	pool *pgxpool.Pool
 }
 
-// NewPolicyRepository returns a PostgreSQL-backed PolicyRepository.
+
 func NewPolicyRepository(pool *pgxpool.Pool) PolicyRepository {
 	return &pgxPolicyRepository{pool: pool}
 }
 
 func (r *pgxPolicyRepository) Create(ctx context.Context, pd *models.PolicyDecision) error {
-	// Keep the deterministic policy explanation with the decision.  The original
-	// schema calls this JSONB column `reasons`; older rows contain just the rule
-	// list, while new rows store both the human-readable reason and its rule IDs.
+	
+	
+	
 	reasonsJSON, err := json.Marshal(struct {
 		Reason string   `json:"reason"`
 		Rules  []string `json:"rules_triggered"`
@@ -97,7 +97,7 @@ func (r *pgxPolicyRepository) GetByTransactionID(ctx context.Context, txID strin
 			pd.Reason = stored.Reason
 			pd.RulesTriggered = stored.Rules
 		} else {
-			// Backward compatibility for pre-explanation rows.
+			
 			_ = json.Unmarshal(reasons, &pd.RulesTriggered)
 		}
 	}

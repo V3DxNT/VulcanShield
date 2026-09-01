@@ -8,8 +8,8 @@ import (
 	"github.com/vulcanshield/backend/internal/models"
 )
 
-// NormalScenario generates realistic distributed payment traffic across all
-// seeded users with amounts within each user's typical range.
+
+
 type NormalScenario struct{}
 
 func (n *NormalScenario) Type() models.ScenarioType { return models.ScenarioNormal }
@@ -49,7 +49,7 @@ func progressiveTimestamp(idx int, rng *rand.Rand) time.Time {
 	return time.Now().UTC().Add(time.Duration(idx)*time.Second + time.Duration(rng.Intn(250))*time.Millisecond)
 }
 
-// randAmount returns a random float64 in [min, max] rounded to 2 decimal places.
+
 func randAmount(rng *rand.Rand, min, max float64) float64 {
 	if min >= max {
 		return min

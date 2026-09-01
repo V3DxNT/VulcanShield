@@ -32,13 +32,14 @@ class RetrievalTraceItem(BaseModel):
 class InvestigationResponse(BaseModel):
     investigation_id: str
     transaction_id: str
-    risk_level: str = Field(..., example="HIGH") # LOW, MEDIUM, HIGH, CRITICAL
+    risk_level: str = Field(..., example="HIGH")                              
     summary: str
     evidence: List[EvidenceItem] = Field(default_factory=list)
     similar_cases: List[SimilarCase] = Field(default_factory=list)
-    recommended_action: str = Field(..., example="BLOCK_ACCOUNT") # ALLOW, CHALLENGE, BLOCK_ACCOUNT, MANUAL_REVIEW
+    recommended_action: str = Field(..., example="BLOCK_ACCOUNT")                                                 
     confidence: float = Field(..., ge=0.0, le=1.0)
     llm_model: str = Field(default="qwen2.5:7b-instruct")
+    llm_prompt: str = Field(default="", description="Exact prompt sent to the LLM")
     initial_risk_score: int = Field(default=0)
     final_risk_score: int = Field(default=0)
     retrieval_trace: List[RetrievalTraceItem] = Field(default_factory=list)

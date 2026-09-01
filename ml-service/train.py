@@ -8,7 +8,7 @@ from xgboost import XGBClassifier
 def generate_synthetic_dataset(n_samples=2000, seed=42):
     np.random.seed(seed)
     
-    # Feature distribution matching VulcanShield Phase 2 baseline entities
+                                                                          
     amount = np.random.exponential(scale=100.0, size=n_samples) + 5.0
     typical_max_amount = np.random.choice([100.0, 250.0, 1500.0], size=n_samples)
     user_tx_count_60s = np.random.poisson(lam=1.5, size=n_samples)
@@ -18,10 +18,10 @@ def generate_synthetic_dataset(n_samples=2000, seed=42):
     is_emulator = np.random.choice([0, 1], p=[0.9, 0.1], size=n_samples)
     is_vpn = np.random.choice([0, 1], p=[0.85, 0.15], size=n_samples)
     
-    # Calculate amount ratio
+                            
     amount_ratio = amount / (typical_max_amount + 1e-5)
     
-    # Synthetic target label (fraud: 1, normal: 0)
+                                                  
     fraud_prob_raw = (
         (amount_ratio > 3.0).astype(float) * 0.4 +
         (user_tx_count_60s > 5).astype(float) * 0.35 +
@@ -59,7 +59,7 @@ def train_and_save_models():
     X = df[feature_cols]
     y = df["is_fraud"]
     
-    # 1. XGBoost Classifier (Fraud Probability)
+                                               
     xgb = XGBClassifier(
         n_estimators=50,
         max_depth=4,
@@ -69,7 +69,7 @@ def train_and_save_models():
     )
     xgb.fit(X, y)
     
-    # 2. Isolation Forest (Anomaly Score)
+                                         
     iso = IsolationForest(
         n_estimators=50,
         contamination=0.08,

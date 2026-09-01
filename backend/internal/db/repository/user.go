@@ -7,25 +7,25 @@ import (
 	"github.com/vulcanshield/backend/internal/models"
 )
 
-// UserRepository defines data access for user profiles.
+
 type UserRepository interface {
-	// GetByID retrieves a user by their user_id.
-	// Returns ErrNotFound if no user exists with that ID.
+	
+	
 	GetByID(ctx context.Context, userID string) (*models.User, error)
 }
 
-// pgxUserRepository is the PostgreSQL-backed implementation.
+
 type pgxUserRepository struct {
 	pool *pgxpool.Pool
 }
 
-// NewUserRepository returns a PostgreSQL-backed UserRepository.
+
 func NewUserRepository(pool *pgxpool.Pool) UserRepository {
 	return &pgxUserRepository{pool: pool}
 }
 
-// GetByID retrieves a user by primary key.
-// challenge_threshold and block_threshold are the authoritative per-user policy params.
+
+
 func (r *pgxUserRepository) GetByID(ctx context.Context, userID string) (*models.User, error) {
 	const q = `
 		SELECT user_id, name, email, risk_tolerance,

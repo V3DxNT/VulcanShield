@@ -18,7 +18,7 @@ type ChallengeHandlers struct {
 	OTPService    *challenge.Service
 }
 
-// GetByID handles GET /api/v1/challenges/{id}.
+
 func (h *ChallengeHandlers) GetByID(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if id == "" {
@@ -41,8 +41,8 @@ func (h *ChallengeHandlers) GetByID(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, c)
 }
 
-// Verify handles POST /api/v1/challenges/{id}/verify.
-// Validates 6-digit OTP against 60s TTL / SHA-256 hash.
+
+
 func (h *ChallengeHandlers) Verify(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if id == "" {
@@ -96,7 +96,7 @@ func (h *ChallengeHandlers) Verify(w http.ResponseWriter, r *http.Request) {
 		_ = h.ChallengeRepo.Update(r.Context(), c)
 		_ = h.TxRepo.UpdateStatus(r.Context(), c.TransactionID, models.StatusApproved)
 
-		// Persist the deterministic post-challenge policy re-evaluation.
+		
 		h.persistFinalDecision(r, c.TransactionID, models.DecisionAllow, "Step-up OTP successfully verified — transaction approved", "RULE_OTP_VERIFIED", now)
 
 		writeJSON(w, http.StatusOK, models.OTPVerifyResponse{
@@ -109,7 +109,7 @@ func (h *ChallengeHandlers) Verify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Invalid OTP
+	
 	if c.Attempts >= c.MaxAttempts {
 		c.Status = models.ChallengeFailed
 		_ = h.ChallengeRepo.Update(r.Context(), c)
@@ -136,7 +136,7 @@ func (h *ChallengeHandlers) Verify(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// persistFinalDecision records the deterministic post-challenge re-evaluation.
+
 func (h *ChallengeHandlers) persistFinalDecision(r *http.Request, transactionID string, decision models.PolicyDecisionType, reason, rule string, now time.Time) {
 	if h.PolicyRepo == nil {
 		return

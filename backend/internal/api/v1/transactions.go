@@ -14,7 +14,7 @@ const (
 	maxLimit     = 100
 )
 
-// TransactionHandlers handles transaction query endpoints.
+
 type TransactionHandlers struct {
 	TxRepo        repository.TransactionRepository
 	RiskRepo      repository.RiskRepository
@@ -22,8 +22,8 @@ type TransactionHandlers struct {
 	ChallengeRepo repository.ChallengeRepository
 }
 
-// GetByID handles GET /api/v1/transactions/{id}.
-// Returns 404 if the transaction does not exist.
+
+
 func (h *TransactionHandlers) GetByID(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if id == "" {
@@ -72,9 +72,9 @@ type transactionView struct {
 	ChallengeStatus  string  `json:"challenge_status,omitempty"`
 }
 
-// List handles GET /api/v1/transactions.
-// Supports query parameters: user_id (optional), limit (default 20, max 100).
-// Enforces sane pagination per implementation constraints.
+
+
+
 func (h *TransactionHandlers) List(w http.ResponseWriter, r *http.Request) {
 	userID := r.URL.Query().Get("user_id")
 

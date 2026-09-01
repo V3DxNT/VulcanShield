@@ -10,7 +10,7 @@ import (
 	"github.com/vulcanshield/backend/internal/models"
 )
 
-// VelocitySignals holds the sliding-window behavioral counts over the last 60s.
+
 type VelocitySignals struct {
 	UserTxCount60s   int64   `json:"user_tx_count_60s"`
 	IPTxCount60s     int64   `json:"ip_tx_count_60s"`
@@ -18,21 +18,21 @@ type VelocitySignals struct {
 	UserAmountSum60s float64 `json:"user_amount_sum_60s"`
 }
 
-// VelocityEngine calculates real-time sliding window velocity counters in Redis.
+
 type VelocityEngine struct {
 	client *redis.Client
 }
 
-// NewVelocityEngine wraps a go-redis client.
+
 func NewVelocityEngine(client *redis.Client) *VelocityEngine {
 	return &VelocityEngine{client: client}
 }
 
-// RecordTransaction pushes the transaction into Redis sorted sets for velocity tracking.
-// Key format: velocity:user:{user_id}, velocity:ip:{ip_address}, velocity:device:{device_id}.
+
+
 func (v *VelocityEngine) RecordTransaction(ctx context.Context, tx *models.Transaction) error {
 	if v.client == nil {
-		return nil // Non-fatal if Redis is disabled/degraded
+		return nil 
 	}
 
 	score := float64(tx.Timestamp.UnixMilli())
@@ -57,10 +57,10 @@ func (v *VelocityEngine) RecordTransaction(ctx context.Context, tx *models.Trans
 	return err
 }
 
-// GetVelocitySignals computes counts and sum for entries in [now - 60s, now].
+
 func (v *VelocityEngine) GetVelocitySignals(ctx context.Context, tx *models.Transaction) (*VelocitySignals, error) {
 	if v.client == nil {
-		return &VelocitySignals{}, nil // Fallback defaults if degraded
+		return &VelocitySignals{}, nil 
 	}
 
 	nowMs := tx.Timestamp.UnixMilli()
@@ -76,7 +76,7 @@ func (v *VelocityEngine) GetVelocitySignals(ctx context.Context, tx *models.Tran
 
 	pipe := v.client.Pipeline()
 
-	// Clean entries older than 60s
+	
 	pipe.ZRemRangeByScore(ctx, userKey, "-inf", "("+minScore)
 	pipe.ZRemRangeByScore(ctx, ipKey, "-inf", "("+minScore)
 	pipe.ZRemRangeByScore(ctx, deviceKey, "-inf", "("+minScore)
@@ -88,12 +88,12 @@ func (v *VelocityEngine) GetVelocitySignals(ctx context.Context, tx *models.Tran
 
 	_, err := pipe.Exec(ctx)
 	if err != nil && err != redis.Nil {
-		return &VelocitySignals{}, nil // Degraded fallback
+		return &VelocitySignals{}, nil 
 	}
 
 	var amountSum float64
 	for _, m := range userMembersCmd.Val() {
-		// member format: tx_id:amount
+		
 		var amount float64
 		var txID string
 		if n, _ := fmt.Sscanf(m, "%s:%f", &txID, &amount); n == 2 {

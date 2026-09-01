@@ -11,33 +11,33 @@ import (
 
 const version = "0.1.0"
 
-// Prober is satisfied by any dependency that can report its health.
+
 type Prober interface {
 	Ping(ctx context.Context) error
 }
 
-// HealthHandlers holds the dependencies needed for health/readiness endpoints.
+
 type HealthHandlers struct {
 	Postgres Prober
 	Redis    Prober
 	Kafka    Prober
 }
 
-// healthResponse is the liveness endpoint payload.
+
 type healthResponse struct {
 	Status  string `json:"status"`
 	Service string `json:"service"`
 	Version string `json:"version"`
 }
 
-// readyResponse is the readiness endpoint payload.
+
 type readyResponse struct {
 	Status      string            `json:"status"`
 	Checks      map[string]string `json:"checks"`
 	LatenciesMS map[string]int64  `json:"latencies_ms"`
 }
 
-// Health handles GET /health — always 200 if the server is running.
+
 func (h *HealthHandlers) Health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, healthResponse{
 		Status:  "ok",
@@ -46,8 +46,8 @@ func (h *HealthHandlers) Health(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Ready handles GET /ready — probes PostgreSQL, Redis, and Kafka.
-// Returns 200 if all dependencies are healthy, 503 if any are unavailable.
+
+
 func (h *HealthHandlers) Ready(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
@@ -90,14 +90,14 @@ func (h *HealthHandlers) Ready(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// writeJSON writes a JSON-encoded value with the given HTTP status code.
+
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
 }
 
-// writeError writes a structured JSON error response.
+
 func writeError(w http.ResponseWriter, status int, code, message string) {
 	writeJSON(w, status, map[string]string{
 		"error": message,
@@ -105,13 +105,13 @@ func writeError(w http.ResponseWriter, status int, code, message string) {
 	})
 }
 
-// requestID is a convenience wrapper that reads the ID from context.
+
 func requestID(r *http.Request) string {
 	return middleware.GetRequestID(r.Context())
 }
 
-// decodeJSON reads and decodes a JSON request body into v.
-// Returns false and writes a 400 error response if decoding fails.
+
+
 func decodeJSON(w http.ResponseWriter, r *http.Request, v any) bool {
 	if err := json.NewDecoder(r.Body).Decode(v); err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_JSON", "malformed request body: "+err.Error())

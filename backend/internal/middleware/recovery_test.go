@@ -17,7 +17,7 @@ func TestRecovery_PanicReturns500(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rr := httptest.NewRecorder()
 
-	// Should not crash the test process
+	
 	handler.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusInternalServerError {

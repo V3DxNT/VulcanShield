@@ -1,4 +1,4 @@
-//go:build integration
+
 
 package redis
 
@@ -9,8 +9,8 @@ import (
 )
 
 func TestNewClient_Integration(t *testing.T) {
-	// Requires a running Redis container.
-	// Run with: go test ./... -tags=integration
+	
+	
 	t.Setenv("POSTGRES_PASSWORD", "vulcanpass")
 	t.Setenv("REDIS_HOST", "localhost")
 	t.Setenv("REDIS_PORT", "6379")

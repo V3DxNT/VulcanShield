@@ -2,8 +2,8 @@ package models
 
 import "time"
 
-// FraudRelationship represents an edge in the relational fraud graph.
-// Matches the Phase 2 schema `fraud_relationships` table.
+
+
 type FraudRelationship struct {
 	RelationshipID   string    `json:"relationship_id"`
 	SourceType       string    `json:"source_type"`
@@ -16,7 +16,7 @@ type FraudRelationship struct {
 	CreatedAt        time.Time `json:"created_at"`
 }
 
-// GraphFeatures contains graph-derived features for a user or transaction.
+
 type GraphFeatures struct {
 	SharedDeviceAccounts int  `json:"shared_device_accounts"`
 	SharedIPAccounts     int  `json:"shared_ip_accounts"`

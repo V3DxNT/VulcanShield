@@ -7,9 +7,9 @@ import (
 	"runtime/debug"
 )
 
-// Recovery is middleware that catches panics in downstream handlers,
-// logs the stack trace via slog, and returns an HTTP 500 response.
-// This prevents a single handler panic from crashing the entire server.
+
+
+
 func Recovery(log *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
