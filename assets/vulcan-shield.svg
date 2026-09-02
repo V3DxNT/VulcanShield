@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="120" viewBox="0 0 400 120">
+  <rect width="400" height="120" rx="12" fill="#0b2447" />
+  <g fill="#fff" font-family="Segoe UI, Roboto, Arial" font-size="28" font-weight="700">
+    <text x="24" y="70">Vulcan Shield</text>
+  </g>
+  <circle cx="340" cy="60" r="28" fill="#ff9f1c" />
+  <text x="332" y="68" font-size="22" font-family="Segoe UI, Roboto, Arial" fill="#0b2447" font-weight="700">VS</text>
+</svg>

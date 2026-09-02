@@ -349,7 +349,15 @@ async def generate_llm_investigation(
 
     inv_id = f"INV-{req.transaction_id}"
     llm_model = "rule-based-evidence-fallback"
-    llm_prompt = ""
+    llm_prompt = (
+        f"Transaction {req.transaction_id} for user {req.user_id}.\n"
+        f"Amount: ₹{req.amount:,.2f}; Risk score: {req.risk_score}; Fraud probability: {req.fraud_probability}; Anomaly score: {req.anomaly_score}; Policy decision: {decision}; Status: {req.status}.\n"
+        f"Customer retrieval context: last_transaction_status={customer_history.get('last_transaction_status', 'unknown')}; previous_fraud_count={customer_history.get('previous_fraud_count', 0)}; historical_max_amount=₹{customer_history.get('typical_max_amount', 'unknown')}; recent_transaction_history={recent_history_text}.\n"
+        f"Device profile: device_id={device_profile.get('device_id', 'unknown')}; trust_score={device_profile.get('trust_score', 'n/a')}; is_emulator={device_profile.get('is_emulator', False)}.\n"
+        f"IP profile: ip_address={ip_profile.get('ip_address', 'unknown')}; risk_score={ip_profile.get('risk_score', 'n/a')}; is_vpn={ip_profile.get('is_vpn', False)}.\n"
+        f"Evidence: {[e.fact for e in evidence]}\n"
+        "Return a 5-bullet structured explanation grounded in the supplied evidence and the policy decision. Do not invent facts or claim hidden details."
+    )
     confidence = 0.58 + min(0.2, 0.05 * max(0, len(evidence))) + (0.1 if similar_cases else 0.0) + (0.08 if decision in {"CHALLENGE", "BLOCK"} else 0.0)
     confidence = round(min(0.97, confidence), 2)
 
@@ -448,6 +456,16 @@ async def generate_llm_investigation(
             raise RuntimeError("No LLM provider is configured for investigation generation.")
     except Exception as exc:
         logger.exception("AI generation failed; falling back to deterministic summary: %s", exc)
+        llm_model = "rule-based-evidence-fallback"
+        llm_prompt = (
+            f"Transaction {req.transaction_id} for user {req.user_id}.\n"
+            f"Amount: ₹{req.amount:,.2f}; Risk score: {req.risk_score}; Fraud probability: {req.fraud_probability}; Anomaly score: {req.anomaly_score}; Policy decision: {decision}; Status: {req.status}.\n"
+            f"Customer retrieval context: last_transaction_status={customer_history.get('last_transaction_status', 'unknown')}; previous_fraud_count={customer_history.get('previous_fraud_count', 0)}; historical_max_amount=₹{customer_history.get('typical_max_amount', 'unknown')}; recent_transaction_history={recent_history_text}.\n"
+            f"Device profile: device_id={device_profile.get('device_id', 'unknown')}; trust_score={device_profile.get('trust_score', 'n/a')}; is_emulator={device_profile.get('is_emulator', False)}.\n"
+            f"IP profile: ip_address={ip_profile.get('ip_address', 'unknown')}; risk_score={ip_profile.get('risk_score', 'n/a')}; is_vpn={ip_profile.get('is_vpn', False)}.\n"
+            f"Evidence: {[e.fact for e in evidence]}\n"
+            "Return a 5-bullet structured explanation grounded in the supplied evidence and the policy decision. Do not invent facts or claim hidden details."
+        )
 
     return InvestigationResponse(
         investigation_id=inv_id,

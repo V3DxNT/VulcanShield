@@ -49,7 +49,7 @@ export default function Navbar() {
         </div>
         <div className="flex items-center gap-2 rounded-full border border-[#d2d2d7] bg-[#f5f5f7] px-3 py-1.5 text-xs font-medium text-[#6e6e73]">
           <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse"></span>
-          <span>Synthetic demo</span>
+          <span>Online</span>
         </div>
       </div>
     </header>

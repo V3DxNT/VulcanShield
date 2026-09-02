@@ -122,7 +122,7 @@ export default function AIInvestigationModal({ transactionID, onClose }: AIInves
       subtitle: 'Fraud probability',
       tone: 'bg-[#eefaf3] text-[#177b4d]',
       body:
-        'For this synthetic demo model, the fraud probability is computed via the positive-class output of the XGBoost model: fraud_probability = XGBClassifier.predict_proba(X)[0][1]. The feature vector is X = [amount, typical_max_amount, amount_ratio, user_tx_count_60s, ip_tx_count_60s, device_tx_count_60s, trust_score, is_emulator, is_vpn].',
+        'For the active live model, the fraud probability is computed via the positive-class output of the XGBoost model: fraud_probability = XGBClassifier.predict_proba(X)[0][1]. The feature vector is X = [amount, typical_max_amount, amount_ratio, user_tx_count_60s, ip_tx_count_60s, device_tx_count_60s, trust_score, is_emulator, is_vpn].',
     },
     {
       key: 'isolation' as const,
@@ -161,7 +161,7 @@ export default function AIInvestigationModal({ transactionID, onClose }: AIInves
           <div className="flex flex-col items-center gap-3 px-6 py-16 text-[#6e6e73]">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#0071e3] border-t-transparent" />
             <p className="text-sm">Analyzing behavioral signals, device intelligence, and RAG playbooks…</p>
-            <p className="text-xs text-[#a1a1a6]">Using llama-3.1:8b when available; otherwise falling back to deterministic evidence.</p>
+            <p className="text-xs text-[#a1a1a6]">Using the active local LLM runtime for investigation context and evidence synthesis.</p>
           </div>
         ) : report ? (
           <div className="space-y-6 px-6 py-5">
@@ -189,7 +189,7 @@ export default function AIInvestigationModal({ transactionID, onClose }: AIInves
                 <div className="rounded-xl border border-[#e8e8ed] bg-[#f5f5f7] p-4">
                   <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#6e6e73]">AI Confidence</p>
                   <p className="text-xl font-semibold text-[#1d1d1f]">{((report.confidence ?? 0.91) * 100).toFixed(0)}%</p>
-                  <p className="mt-1 text-xs text-[#a1a1a6]">Model: {report.llm_model}</p>
+                  <p className="mt-1 text-xs text-[#a1a1a6]">Model: {report.llm_model || 'local-llm'}</p>
                 </div>
                 {txDetail?.challenge_status && (
                   <div className="col-span-2 rounded-xl border border-[#e8e8ed] bg-[#f5f5f7] p-3">
@@ -242,11 +242,14 @@ export default function AIInvestigationModal({ transactionID, onClose }: AIInves
                   <button onClick={() => window.location.href = `/network?user=${encodeURIComponent(userID)}`} className="rounded-lg border border-[#0071e3]/30 bg-white px-3 py-1.5 text-xs font-medium text-[#0071e3] hover:bg-blue-50">View user network →</button>
                 </div>
               </div>
+              {report.llm_model === 'rule-based-evidence-fallback' && (
+                <p className="mb-3 text-xs font-medium text-amber-700">AI investigator is in deterministic fallback mode because the local LLM runtime is unavailable; the summary below reflects the structured evidence and policy logic instead of a live model response.</p>
+              )}
               <p className="whitespace-pre-line text-sm leading-relaxed text-[#1d1d1f]">{report.summary}</p>
-              {showPrompt && report.llm_prompt && (
+              {showPrompt && (
                 <div className="mt-4 rounded-xl border border-[#d2d2d7] bg-white p-3">
-                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#6e6e73]">LLM Prompt</p>
-                  <pre className="whitespace-pre-wrap break-words font-mono text-[11px] leading-6 text-[#1d1d1f]">{report.llm_prompt}</pre>
+                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#6e6e73]">Prompt sent to the investigation model</p>
+                  <pre className="whitespace-pre-wrap break-words font-mono text-[11px] leading-6 text-[#1d1d1f]">{report.llm_prompt || 'No live LLM prompt was generated because the model is unavailable. The investigation used the deterministic structured-evidence fallback path.'}</pre>
                 </div>
               )}
             </div>
@@ -282,13 +285,13 @@ export default function AIInvestigationModal({ transactionID, onClose }: AIInves
 
                 {expandedModel === 'xgboost' && (
                   <div className="space-y-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#6e6e73]">Why TX-ATO-2499-00004 got 78.04%</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#6e6e73]">Why {transactionID} scored this XGBoost probability</p>
                     <p className="text-sm leading-relaxed text-[#1d1d1f]">The fraud probability is the positive-class output of the trained XGBoost model and it is computed from the current transaction plus the customer-history context fetched before the score is generated.</p>
                     <div className="rounded-xl border border-[#d2d2d7] bg-white p-3">
                       <p className="whitespace-pre-wrap font-mono text-xs leading-6 text-[#1d1d1f]">amount_ratio = amount / (typical_max_amount + 1e-5)
 fraud_probability = XGBClassifier.predict_proba(X)[0][1]
 
-example live values:
+live values for {transactionID}:
 amount = ₹{currentAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
 historical max = {historicalMaxAmount !== null ? `₹${Number(historicalMaxAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : 'fetched from customer history'}
 amount_ratio = {amountRatio !== null ? amountRatio.toFixed(2) : 'derived from recent customer profile'}

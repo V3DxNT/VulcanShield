@@ -2,6 +2,34 @@
 
 VulcanShield is a financial transaction risk management platform designed for real-time risk assessment, velocity signal detection, deterministic policy authorization, fraud-network analysis, and explainable AI investigation.
 
+## Architecture Overview
+
+![Vulcan Shield logo](./assets/vulcan-shield.svg)
+
+- Code: vedx.dev
+- YouTube: [placeholder](https://youtube.com/placeholder)
+
+Services and responsibilities
+
+- backend: Go service that orchestrates the transaction lifecycle, policy engine, Redis/Kafka integration, and Postgres persistence. It is the authoritative decision-maker (policy decides).
+- frontend: Next.js + React UI for dashboards, live transaction stream, investigation modal, and scenario controls.
+- ml-service: Python FastAPI service hosting the XGBoost and Isolation Forest models (ML predicts). It receives structured feature vectors and returns `fraud_probability` and `anomaly_score`.
+- ai-service: Python FastAPI investigator that performs structured retrieval (RAG-like customer-history fetch) and calls the configured LLM (Ollama/Groq) or falls back to deterministic rule-based summaries when the LLM is unavailable (AI investigates and explains).
+- postgres: Durable source of truth for users, transactions, risk assessments, and RAG documents (pgvector for semantic retrieval).
+- redis: Real-time counters and velocity engine for temporary state, sliding windows, and OTP/challenge state.
+- kafka: Event streaming for decoupling transaction generation, risk evaluation, and downstream consumers.
+
+Problems addressed
+
+- Real-time velocity detection: handled by Redis to avoid expensive DB lookups for high-frequency checks.
+- Deterministic policy: Policy engine ensures auditable ALLOW / CHALLENGE / BLOCK decisions separate from ML output.
+- Explainability: AI investigator combines structured retrieval + LLM to produce analyst-friendly explanations; falls back to deterministic summaries when models are unavailable.
+
+Notes
+
+- The ML models in `ml-service` rely on training data. The project uses the internal scenario generator to produce synthetic training and demo data, but the models must be trained before expecting meaningful predictions. (Do not train now — the system will use fallback rules or pre-saved models if present.)
+
+
 ---
 
 ## Core Architectural Invariants

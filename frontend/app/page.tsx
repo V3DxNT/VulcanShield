@@ -58,19 +58,7 @@ export default function Home() {
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#6e6e73]">Fraud operations</p>
               <h1 className="mt-2 text-3xl font-semibold text-[#1d1d1f] tracking-tight">VulcanShield Risk Operations Console</h1>
-              <p className="text-sm text-[#6e6e73] mt-2">Synthetic monitoring stream · ML scoring · deterministic policy · AI investigation</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {[
-                { label: 'Live feed', value: 'Streaming' },
-                { label: 'Policy mode', value: 'Deterministic' },
-                { label: 'Demo state', value: 'Fresh baseline' },
-              ].map(item => (
-                <div key={item.label} className="rounded-full border border-[#d2d2d7] bg-white px-3 py-1.5 shadow-sm">
-                  <span className="text-[10px] uppercase tracking-[0.14em] text-[#6e6e73]">{item.label}</span>
-                  <div className="text-xs font-semibold text-[#1d1d1f] mt-0.5">{item.value}</div>
-                </div>
-              ))}
+              <p className="text-sm text-[#6e6e73] mt-2">Transaction monitoring · ML scoring · policy evaluation · AI investigation</p>
             </div>
           </div>
         </div>
